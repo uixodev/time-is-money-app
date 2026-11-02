@@ -155,3 +155,16 @@ select.field option{color:#16210F;background:#fff}
 .swatches{display:flex;gap:10px;margin-top:10px}
 .swatch{width:34px;height:34px;border-radius:50%;border:2px solid var(--line)}
 .swatch.on{outline:3px solid var(--ink);outline-offset:2px}
+
+/* ---- Health pillars, debt, toast ---- */
+.pillars{display:grid;grid-template-columns:1fr 1fr;gap:12px 14px;margin-top:14px}
+.pl .pn{display:flex;justify-content:space-between;font-size:13px;font-weight:700;margin-bottom:5px}
+.pl .pn b{font-variant-numeric:tabular-nums}
+.pl .pb{height:9px;border-radius:99px;background:var(--line);overflow:hidden}
+.pl .pb i{display:block;height:100%;background:#6FBF3B;border-radius:99px;transition:width .3s}
+.pl.low .pb i{background:repeating-linear-gradient(45deg,#16210F 0 4px,#C9F26B 4px 8px)}
+.pl.low .pn{color:var(--muted)}
+.hero.debt{background:#16210F;color:#C9F26B;border:1.5px solid #C9F26B}
+.hero.debt .lbl,.hero.debt .sub{color:#C9F26B}
+.toast{position:absolute;left:50%;bottom:96px;transform:translateX(-50%);background:var(--btn-bg);color:var(--btn-fg);padding:11px 18px;border-radius:999px;font-weight:700;font-size:14px;z-index:60;max-width:88%;text-align:center;animation:up .25s;box-shadow:0 8px 24px rgba(0,0,0,.25)}
+.deedbtn{flex-wrap:wrap}

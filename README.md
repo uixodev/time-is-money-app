@@ -1,32 +1,46 @@
-# Tick — earn Ticks with hard things, spend them on useless things
+# Tick — earn Ticks by working hard and looking after yourself, spend them on useless things
 
-Two separate currencies:
+Three layers:
 
-- **Time** — everyone gets the same **86,400 seconds** every day. It can't be saved; unspent time expires at midnight.
-- **Ticks (Ŧ.)** — *your own* money. **Hard deeds earn Ticks. Useless deeds cost Ticks.** Ticks never expire, so you build a guilt-free balance for wasting time.
-
-Every deed has a type and a rate in Ticks per minute:
-
-| Type | Example | Effect |
+| Layer | What it is | Rule |
 |---|---|---|
-| Hard | Deep work (+3/min), Workout (+4/min) | earns Ticks |
-| Useless | Scrolling (−1/min), Gaming (−2/min) | spends Ticks — you can't start one without enough |
-| Just living | Sleep | uses time only |
+| **Time** | 86,400 seconds a day | Equal for everyone. Expires at midnight. |
+| **Health** | Six pillars: **Sleep · Food · Move · Hygiene · Home · Family** | Each is a 0–100 gauge that drains through the day and refills when you look after it. |
+| **Ticks (Ŧ.)** | Your money | Hard deeds and care earn them, useless deeds spend them. Never expire. Can go negative. |
 
-You start with 30 Ticks as a welcome gift. A useless deed stops automatically when your Ticks run out.
+## Health
 
-## The coins
+- Overall Health = 60% average of the pillars + 40% your weakest pillar, so you can't hide a neglected one.
+- **Gate:** below **40%** you can't start a hard deed, and a running one stops. Refill a pillar first.
+- Pillars drain at different speeds (Food fastest, Family slowest — see `PILLARS` in `app.js`).
 
-Ticks come in three coins — **Tick (1)**, **Ten (10)**, **Hundred (100)** — one round family with an open timer ring;
-the darker the coin, the more it is worth. The currency sign is a struck T with a seconds pip (`brand/`).
+## Deed types
+
+| Type | Examples | Effect |
+|---|---|---|
+| **Hard** | Deep work (+3/min) | earns Ticks (needs Health ≥ 40%) |
+| **Care** (timer) | Sleep, Workout, Cleaning, Family time | refills one pillar over time and earns a few Ticks |
+| **Care** (check-in) | Meal, Wash up | one tap: refills a pillar and pays Ticks in proportion to what it actually refilled — a full pillar pays nothing |
+| **Useless** | Scrolling (−1/min), Gaming (−2/min) | spends Ticks |
+| **Just living** | anything custom | uses time only |
+
+## Debt
+
+Ticks can go below zero. While you are in debt, useless time costs **+50%** and the card turns dark.
+Earned Ticks repay the debt first, because it is simply a negative balance.
+
+## Coins
+
+Ticks come in **Tick (1)**, **Ten (10)** and **Hundred (100)** coins — one round family with an open timer ring.
+The currency sign is a struck T with a seconds pip (`brand/`).
 
 ## Screens
 
-- **Wallet** – Ticks balance (live), coin purse, start a deed, time left today, where today went.
-- **Deeds** – hard / useless / just-living deeds with their rates. Add, edit (✎ name, type, rate, colour) or delete them, or log time you already spent.
-- **Ask** – "2h scrolling" → cost in Ticks and what you'd have left; "100 ticks" → how long to earn or burn them.
-- **Goals** – guilt-free rewards ("Gaming weekend: 600 Ticks") with how much hard work they need.
-- **History** – average earned vs. spent, 7-day time chart, day-by-day net Ticks.
+- **Wallet** – Ticks balance, Health pillars, what are you doing, coin purse, time left, where today went.
+- **Deeds** – hard / care / useless / living deeds. Add, edit (✎) or delete; log time you already spent.
+- **Ask** – "2h scrolling", "100 ticks", "how is my health?".
+- **Goals** – guilt-free rewards with how much hard work they need.
+- **History** – earned vs. spent, 7-day time chart, day by day.
 
 Colours: light lime `#C9F26B`, forest ink `#16210F`, tonal greens. Dark mode included.
 
@@ -38,8 +52,10 @@ No build step. Open `index.html`, or:
 python3 -m http.server 8000
 ```
 
-Data is stored in `localStorage` (`tick.v1`).
+Data is stored in `localStorage` (`tick.v1`). Older saves are migrated automatically.
 
-## Ideas for later
+## Roadmap
 
-Accounts and sync, gifting Ticks, Tick-earning streak bonuses, shared goals, a real AI for Ask.
+- **Phase 2:** sleep mode (going-to-bed target, rewards for a steady bedtime), golden hours (×2 on hard deeds in windows you choose).
+- **Phase 3:** end-of-session notes ("what did you get done?"), coin / confetti reward moments, vibration on Android.
+- Later: accounts and sync, gifting Ticks, shared goals, AI for Ask.
