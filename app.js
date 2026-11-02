@@ -7,7 +7,8 @@
   const KEY = 'tick.v1';
   const DAY = 86400;
   const $ = (s, el = document) => el.querySelector(s);
-  const PALETTE = ['#C9F26B', '#9ADFC4', '#A9D8F5', '#FFB787', '#E3C7FF', '#FFE27A'];
+  // one tonal green family (+ ink) so every deed colour belongs to the brand
+  const PALETTE = ['#C9F26B', '#6FBF3B', '#2F6B2A', '#A9C79B', '#E4F5B0', '#16210F'];
 
   // ---------- state ----------
   const defaults = () => ({
@@ -16,9 +17,9 @@
     deeds: [
       { id: 'd1', name: 'Deep work', color: PALETTE[0] },
       { id: 'd2', name: 'Sleep', color: PALETTE[2] },
-      { id: 'd3', name: 'Move', color: PALETTE[3] },
-      { id: 'd4', name: 'People', color: PALETTE[1] },
-      { id: 'd5', name: 'Scrolling', color: PALETTE[4] },
+      { id: 'd3', name: 'Move', color: PALETTE[1] },
+      { id: 'd4', name: 'People', color: PALETTE[3] },
+      { id: 'd5', name: 'Scrolling', color: PALETTE[5] },
     ],
     entries: [],   // {id, deedId, ts (ms, within a single day), secs}
     active: null,  // {deedId, start}
@@ -28,21 +29,36 @@
   let S;
   try { S = Object.assign(defaults(), JSON.parse(localStorage.getItem(KEY) || '{}')); }
   catch { S = defaults(); }
+  S.deeds.forEach((d, i) => { if (!PALETTE.includes(d.color)) d.color = PALETTE[i % PALETTE.length]; }); // migrate old colours
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch {} };
   const uid = () => Math.random().toString(36).slice(2, 9);
 
   // ---------- currency icons ----------
   const INK = '#16210F';
-  const hand = y => `<path d="M24 ${y}V${y - 10}M24 ${y}l5 3" stroke="${INK}" stroke-width="2.6" stroke-linecap="round" fill="none"/><circle cx="24" cy="${y}" r="2.2" fill="${INK}"/>`;
-  const label = t => `<text x="24" y="37" text-anchor="middle" font-family="system-ui,sans-serif" font-size="${t.length > 4 ? 7 : 9}" font-weight="800" fill="${INK}">${t}</text>`;
+  // One coin family: same round shape + open "timer ring". Value shows on the coin; darker = worth more.
   const COINS = {
-    tick: { name: 'Tick', secs: 1, svg: `<circle cx="24" cy="24" r="21" fill="#C9F26B" stroke="${INK}" stroke-width="3"/><circle cx="24" cy="24" r="15" fill="none" stroke="${INK}" stroke-width="1.5" stroke-dasharray="1.6 4.6" stroke-linecap="round"/><path d="M24 24V12M24 24l7 4" stroke="${INK}" stroke-width="3" stroke-linecap="round" fill="none"/><circle cx="24" cy="24" r="2.6" fill="${INK}"/>` },
-    minute: { name: 'Minute', secs: 60, svg: `<polygon points="24,3 42,13.5 42,34.5 24,45 6,34.5 6,13.5" fill="#9ADFC4" stroke="${INK}" stroke-width="3" stroke-linejoin="round"/>${hand(22)}${label('60')}` },
-    hour: { name: 'Hour', secs: 3600, svg: `<rect x="4" y="4" width="40" height="40" rx="13" fill="#A9D8F5" stroke="${INK}" stroke-width="3"/>${hand(22)}${label('3600')}` },
-    day: { name: 'Day', secs: 86400, svg: `<circle cx="24" cy="24" r="21" fill="#FFB787" stroke="${INK}" stroke-width="3"/><circle cx="24" cy="24" r="17" fill="none" stroke="${INK}" stroke-width="1.4"/>${hand(22)}${label('86400')}` },
+    tick:   { name: 'Tick',   secs: 1,     label: '1s', fill: '#C9F26B', fg: INK },
+    minute: { name: 'Minute', secs: 60,    label: '1m', fill: '#E4F5B0', fg: INK },
+    hour:   { name: 'Hour',   secs: 3600,  label: '1h', fill: '#2F6B2A', fg: '#C9F26B' },
+    day:    { name: 'Day',    secs: 86400, label: '1d', fill: INK,       fg: '#C9F26B' },
   };
-  const coin = (k, size = 40) => `<svg viewBox="0 0 48 48" width="${size}" height="${size}" aria-hidden="true">${COINS[k].svg}</svg>`;
-  const tk = '<svg class="tk" viewBox="0 0 48 48" aria-hidden="true">' + COINS.tick.svg + '</svg>';
+  const ring = fg => `<circle cx="24" cy="24" r="14.5" fill="none" stroke="${fg}" stroke-width="2.4" stroke-linecap="round" stroke-dasharray="72 19" transform="rotate(-70 24 24)"/>`;
+  const coinInner = (c, withLabel) => `<circle cx="24" cy="24" r="21" fill="${c.fill}" stroke="${INK}" stroke-width="3"/>${ring(c.fg)}` +
+    (withLabel ? `<text x="24" y="29.2" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-size="13" font-weight="800" fill="${c.fg}">${c.label}</text>` : `<circle cx="24" cy="24" r="3.4" fill="${c.fg}"/>`);
+  const coin = (k, size = 40) => `<svg viewBox="0 0 48 48" width="${size}" height="${size}" aria-hidden="true">${coinInner(COINS[k], true)}</svg>`;
+  // currency symbol (no label so it stays crisp at text size)
+  const tk = '<svg class="tk" viewBox="0 0 48 48" aria-hidden="true">' + coinInner(COINS.tick, false) + '</svg>';
+  const symbol = (size = 26) => `<svg viewBox="0 0 48 48" width="${size}" height="${size}" aria-hidden="true">${coinInner(COINS.tick, false)}</svg>`;
+
+  // consistent 24px line icons for the tab bar
+  const ICONS = {
+    wallet: '<rect x="3" y="6" width="18" height="14" rx="3.5"/><path d="M3 10V8a3 3 0 0 1 3-3h10"/><circle cx="16.5" cy="13" r="1.1" fill="currentColor"/>',
+    deeds: '<circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.8 2.8L16 9.6"/>',
+    ask: '<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20.5l1.4-4.6A8 8 0 1 1 21 12z"/>',
+    goals: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1" fill="currentColor"/>',
+    history: '<path d="M5 20V11M12 20V4M19 20v-6"/>',
+  };
+  const icon = k => `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[k]}</svg>`;
 
   // ---------- time helpers ----------
   const pad = n => String(n).padStart(2, '0');
@@ -90,8 +106,8 @@
 
   // ---------- ui state ----------
   let tab = 'wallet';
-  const TABS = [['wallet', 'Wallet', '◐'], ['deeds', 'Deeds', '✓'], ['ask', 'Ask', '?'], ['goals', 'Goals', '★'], ['history', 'History', '▥']];
-  const renderTabs = () => { $('#tabs').innerHTML = TABS.map(([k, l, i]) => `<button class="tab ${tab === k ? 'on' : ''}" data-tab="${k}"><span class="ic">${i}</span>${l}</button>`).join(''); };
+  const TABS = [['wallet', 'Wallet'], ['deeds', 'Deeds'], ['ask', 'Ask'], ['goals', 'Goals'], ['history', 'History']];
+  const renderTabs = () => { $('#tabs').innerHTML = TABS.map(([k, l]) => `<button class="tab ${tab === k ? 'on' : ''}" data-tab="${k}"><span class="ic">${icon(k)}</span>${l}</button>`).join(''); };
 
   // ---------- sheet ----------
   function openSheet(html, onMount) {
@@ -118,7 +134,7 @@
   }
 
   // ---------- views ----------
-  const head = (title, extra = '') => `<div class="head"><h1>${title}</h1><div style="display:flex;gap:8px">${extra}<button class="icon-btn" data-act="about" aria-label="About the Tick">${coin('tick', 26)}</button></div></div>`;
+  const head = (title, extra = '') => `<div class="head"><h1>${title}</h1><div style="display:flex;gap:8px">${extra}<button class="icon-btn" data-act="about" aria-label="About the Tick">${symbol(26)}</button></div></div>`;
 
   function viewWallet() {
     const bal = balance(), spent = DAY - bal;

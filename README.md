@@ -8,12 +8,12 @@ hoard time, and nobody gets more of it than anyone else.
 
 | Coin | Shape | Colour | Value |
 |---|---|---|---|
-| Tick | circle | lime | 1 second |
-| Minute | hexagon | mint | 60 Ticks |
-| Hour | rounded square | sky | 3,600 Ticks |
-| Day | double-ring circle | peach | 86,400 Ticks |
+| Tick | round, timer ring | lime | 1 second |
+| Minute | round, timer ring | pale lime | 60 Ticks |
+| Hour | round, timer ring | forest green | 3,600 Ticks |
+| Day | round, timer ring | ink | 86,400 Ticks |
 
-Every coin carries a clock hand and its value. The Tick coin (`icon.svg`) is also the app icon.
+Every coin is round with an open timer ring and shows its value (1s, 1m, 1h, 1d); the darker the coin, the more it is worth. The Tick coin (`icon.svg`) is also the app icon.
 
 ## Screens
 
@@ -23,7 +23,7 @@ Every coin carries a clock hand and its value. The Tick coin (`icon.svg`) is als
 - **Goals** – "50 hours on Deep work", tracked in Ticks.
 - **History** – 7-day stacked chart, average spent vs. expired.
 
-Colours: light lime `#C9F26B`, forest ink `#16210F`, peach / mint / sky accents. Dark mode included.
+Colours: light lime `#C9F26B`, forest ink `#16210F`, tonal greens for every accent. Dark mode included.
 
 ## Run
 
