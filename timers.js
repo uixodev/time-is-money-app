@@ -13,7 +13,7 @@
   const signChar = t => (t >= 0.005 ? '+' : t <= -0.005 ? '−' : '');
   const num2 = t => Math.abs(t).toFixed(2);
   const q = (root, sel) => root.querySelector(sel);
-  const subText = ctx => (ctx.kind === 'neutral' ? 'time only' : 'Ticks this session') + (ctx.pillar ? ` · ${ctx.pillar.name} ${Math.round(ctx.pillar.pct)}%` : '');
+  const subText = ctx => ctx.label || ((ctx.kind === 'neutral' ? 'time only' : 'Ticks this session') + (ctx.pillar ? ` · ${ctx.pillar.name} gauge ${Math.round(ctx.pillar.pct)}%` : ''));
   const SIGN = '<svg class="tk" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 14H50M32 14V52M21 31H43"/><circle cx="50" cy="48" r="3.6" fill="currentColor" stroke="none"/></svg>';
 
   function render(ctx) {

@@ -5,7 +5,7 @@
 (() => {
   'use strict';
   const KEY = 'tick.v1';
-  const VERSION = 'v21 · Big number timer';   // bump with the ?v= number in index.html so browsers fetch fresh files
+  const VERSION = 'v22 · up to 3 deeds at once';   // bump with the ?v= number in index.html so browsers fetch fresh files
   const DAY = 86400;
   const $ = (s, el = document) => el.querySelector(s);
   // one tonal green family (+ ink) so every deed colour belongs to the brand
@@ -21,6 +21,7 @@
     home:    { name: 'Home',    decay: 1.5, price: 0.7 },
     family:  { name: 'Family',  decay: 1.2, price: 0.8 },
   };
+  const MAX_ACTIVE = 3;           // deeds you can run at the same time
   const HEALTH_MIN = 40;          // below this overall Health you can't start an investment
   const FADE = 0.98;              // skills fade 2% a day without practice
   const DIV_PER_RATE = 2;         // dividend: Ticks/day per effective hour, per Tick/min of cost (0.5/min → 1 Tick/day per hour)
@@ -49,12 +50,11 @@
     deeds: defaultDeeds(),
     health: freshHealth(),
     entries: [],   // {id, deedId, ts, secs, ticks (signed)}
-    active: null,  // {deedId, start, startVal}
+    actives: [],   // running sessions, up to 3 at once: {id, deedId, start, startVal, startBal}
     goals: [],     // {id, name, target (Ticks)}
     bought: [],    // {id, name, cost, ts} rewards you've bought
     sound: true,   // celebration sounds
     tomb: [],      // ids of things deleted on any device, so deletes survive syncing
-    lastStopped: 0, // start time of the most recently stopped session (stops a finished session coming back from another device)
     notes: [],     // journal: {id, ts, kind:'invest'|'reward', deedId?, refId?, title, line, text, rating}
     divAt: Date.now(),  // last time dividends were settled
     chat: [],
@@ -82,6 +82,10 @@
     S.entries.forEach(e => { if (typeof e.ticks !== 'number') { const d = S.deeds.find(x => x.id === e.deedId); e.ticks = d ? sgn(d) * d.rate * e.secs / 60 : 0; } });
     S.goals = S.goals.filter(g => g.target);
     delete S.timerStyle; delete S.pickedLook;   // the look switcher is gone: everyone has the Big number timer
+    if (S.active && (!Array.isArray(S.actives) || !S.actives.length)) S.actives = [{ id: 'run-' + S.active.start, ...S.active }];   // older saves had ONE running session (defaults already add an empty list)
+    delete S.active; delete S.lastStopped;
+    if (!Array.isArray(S.actives)) S.actives = [];
+    S.actives = S.actives.filter(a => a && typeof a.deedId === 'string' && typeof a.start === 'number').map(a => ({ ...a, id: a.id || 'run-' + a.start })).slice(0, MAX_ACTIVE);
     if (!Array.isArray(S.tomb)) S.tomb = [];
     if (!Array.isArray(S.notes)) S.notes = [];
   }
@@ -155,16 +159,14 @@
   const careRate = d => d.pts * PILLARS[d.pillar].price;   // Ticks per minute (timer) or per check-in (tap) when the pillar has room
   const rateLbl = d => d.kind === 'invest' || d.kind === 'useless' ? `−${nf(d.rate)}/min`
     : d.kind === 'care' ? (d.mode === 'tap' ? `+${nf(careRate(d))} each` : `+${nf(careRate(d))}/min`) : 'no Ticks';
-  const careLbl = d => d.mode === 'tap' ? `${PILLARS[d.pillar].name} +${nf(d.pts)}%` : `${PILLARS[d.pillar].name} +${nf(d.pts)}%/min`;
+  const careLbl = d => d.mode === 'tap' ? `${PILLARS[d.pillar].name} gauge +${nf(d.pts)}%` : `${PILLARS[d.pillar].name} gauge +${nf(d.pts)}%/min`;
   const dayRange = off => [dayStart(off), off === 0 ? nextMidnight() : dayStart(off - 1)];
 
   // ---------- Health ----------
   const hBase = k => { const h = S.health[k]; return clamp(h.v - PILLARS[k].decay * (Date.now() - h.t) / 3600000, 0, 100); };
-  const activeElapsed = () => S.active ? (Date.now() - S.active.start) / 1000 : 0;
-  const liveGain = k => {
-    if (!S.active) return 0; const d = deedOf(S.active.deedId);
-    return d.kind === 'care' && d.mode === 'timer' && d.pillar === k ? d.pts * activeElapsed() / 60 : 0;
-  };
+  const elapsedOf = a => (Date.now() - a.start) / 1000;
+  const isActive = deedId => S.actives.some(a => a.deedId === deedId);
+  const liveGain = k => S.actives.reduce((sum, a) => { const d = deedOf(a.deedId); return sum + (d.kind === 'care' && d.mode === 'timer' && d.pillar === k ? d.pts * elapsedOf(a) / 60 : 0); }, 0);
   const pv = k => clamp(hBase(k) + liveGain(k), 0, 100);
   const healthScore = () => { const v = Object.keys(PILLARS).map(pv); return 0.6 * (v.reduce((a, b) => a + b, 0) / v.length) + 0.4 * Math.min(...v); };
   const gated = () => healthScore() < HEALTH_MIN;
@@ -189,29 +191,30 @@
     if (d.kind === 'useless') return -uselessCost(d.rate, m, ticksSaved());
     return 0;
   }
-  const activeIn = (d0, d1) => !S.active ? 0 : Math.max(0, (Math.min(Date.now(), d1) - Math.max(S.active.start, d0)) / 1000);
-  const activeTicks = (d0, d1) => { const el = activeElapsed(); return S.active && el > 0 ? ticksFor(S.active, el) * (activeIn(d0, d1) / el) : 0; };
+  const activeIn = (a, d0, d1) => Math.max(0, (Math.min(Date.now(), d1) - Math.max(a.start, d0)) / 1000);
+  const activeTicksOf = (a, d0, d1) => { const el = elapsedOf(a); return el > 0 ? ticksFor(a, el) * (activeIn(a, d0, d1) / el) : 0; };
+  const activeTicks = (d0, d1) => S.actives.reduce((sum, a) => sum + activeTicksOf(a, d0, d1), 0);
 
   // TIME: seconds spent per deed in a day (offset 0 = today)
   function dayByDeed(off) {
     const [d0, d1] = dayRange(off), m = {};
     S.entries.forEach(e => { if (e.ts >= d0 && e.ts < d1 && e.secs > 0) m[e.deedId] = (m[e.deedId] || 0) + e.secs; });
-    if (S.active) { const a = activeIn(d0, d1); if (a > 0) m[S.active.deedId] = (m[S.active.deedId] || 0) + a; }
+    S.actives.forEach(a => { const x = activeIn(a, d0, d1); if (x > 0) m[a.deedId] = (m[a.deedId] || 0) + x; });
     return m;
   }
   function dayTicksByDeed(off) {
     const [d0, d1] = dayRange(off), m = {};
     S.entries.forEach(e => { if (e.ts >= d0 && e.ts < d1) m[e.deedId] = (m[e.deedId] || 0) + e.ticks; });
-    if (S.active) { const a = activeTicks(d0, d1); if (a) m[S.active.deedId] = (m[S.active.deedId] || 0) + a; }
+    S.actives.forEach(a => { const x = activeTicksOf(a, d0, d1); if (x) m[a.deedId] = (m[a.deedId] || 0) + x; });
     return m;
   }
   const sum = o => Object.values(o).reduce((a, b) => a + b, 0);
   const dayRemaining = () => Math.max(0, (nextMidnight() - Date.now()) / 1000);   // real seconds until midnight
-  const timeLeft = () => Math.max(0, DAY - Math.min(DAY, sum(dayByDeed(0))));
+  const trackedToday = () => Math.min(DAY - dayRemaining(), sum(dayByDeed(0)));   // doing deeds together doesn't make the day longer
   const dayEarnSpend = off => {
     const [d0, d1] = dayRange(off); let earned = 0, spent = 0;
     S.entries.forEach(e => { if (e.ts >= d0 && e.ts < d1) { if (e.ticks > 0) earned += e.ticks; else spent -= e.ticks; } });
-    const a = activeTicks(d0, d1); if (a > 0) earned += a; else spent -= a;
+    S.actives.forEach(a => { const t = activeTicksOf(a, d0, d1); if (t > 0) earned += t; else spent -= t; });
     return { earned, spent };
   };
   const ticksSaved = () => S.gift + S.entries.reduce((a, e) => a + e.ticks, 0);   // without the running deed
@@ -249,7 +252,7 @@
   function investStats(d) {
     let hours = 0, spent = 0, returned = 0;
     S.entries.forEach(e => { if (e.deedId !== d.id) return; hours += e.secs / 3600; if (e.ticks < 0) spent -= e.ticks; else if (e.div) returned += e.ticks; });
-    if (S.active && S.active.deedId === d.id) { const el = activeElapsed(); hours += el / 3600; spent += d.rate * el / 60; }
+    S.actives.filter(a => a.deedId === d.id).forEach(a => { const el = elapsedOf(a); hours += el / 3600; spent += d.rate * el / 60; });
     const perDay = dividendPerDay(d), net = returned - spent;
     return { hours, spent, returned, perDay, skill: skillHours(d.id, Date.now()), net, roi: spent > 0 ? net / spent : 0, days: net >= 0 ? 0 : perDay > 0.01 ? Math.ceil(-net / perDay) : Infinity };
   }
@@ -276,7 +279,7 @@
     const ticks = gain * PILLARS[d.pillar].price;   // pays in proportion to what it actually refilled
     refill(d.pillar, gain);
     S.entries.push({ id: uid(), deedId: id, ts: Date.now(), secs: 0, ticks });
-    save(); flash(`${PILLARS[d.pillar].name} +${nf(gain)}% · +${t1(ticks)} Ticks`, { label: '+ note', fn: () => freeNoteSheet('care', { deedId: id }, d.name) }); render();
+    save(); flash(`${PILLARS[d.pillar].name} gauge +${nf(gain)}% · +${t1(ticks)} Ticks`, { label: '+ note', fn: () => freeNoteSheet('care', { deedId: id }, d.name) }); render();
   }
 
   // ---------- celebration: confetti + chime ----------
@@ -388,8 +391,8 @@
   function careSummary(d, secs, earned, before, after) {
     const p = PILLARS[d.pillar];
     noteSheet({
-      heading: 'Nicely done 💚', sub: `<b>${esc(d.name)}</b> · ${p.name} ${Math.round(before)}% → ${Math.round(after)}%`,
-      stats: `<div class="stats">${statBox(dur(secs), 'time')}${statBox(tk + '+' + t1(earned), 'Ticks earned')}${statBox(Math.round(after) + '%', p.name)}${statBox(Math.round(healthScore()) + '%', 'overall Health')}</div>`,
+      heading: 'Nicely done 💚', sub: `<b>${esc(d.name)}</b> · ${p.name} gauge ${Math.round(before)}% → ${Math.round(after)}%`,
+      stats: `<div class="stats">${statBox(dur(secs), 'time')}${statBox(tk + '+' + t1(earned), 'Ticks earned')}${statBox(Math.round(after) + '%', p.name + ' gauge')}${statBox(Math.round(healthScore()) + '%', 'overall Health')}</div>`,
       noteLabel: 'How did it go?', placeholder: 'How do you feel? Anything worth remembering?', ratingLabel: 'How do you feel?',
       onSave: (text, rating) => { addNote({ kind: 'care', deedId: d.id, title: d.name, line: `${dur(secs)} · +${t1(earned)} Ticks · ${p.name} ${Math.round(before)}→${Math.round(after)}%`, text, rating }); flash('Saved to your Journal'); render(); },
     });
@@ -431,7 +434,8 @@
     w.onclick = e => { if (e.target === w) closeSheet(); };
     onMount && onMount(w);
   }
-  const closeSheet = () => { const w = $('#sheet'); w.hidden = true; w.innerHTML = ''; };
+  const sheetQueue = [];   // pop-ups waiting their turn (e.g. summaries after "Stop all")
+  const closeSheet = () => { const w = $('#sheet'); w.hidden = true; w.innerHTML = ''; if (sheetQueue.length) { const next = sheetQueue.shift(); setTimeout(next, 300); } };
   const coinList = () => `<div class="coinlist">${['tick', 'ten', 'hundred'].map(k => `
     <div class="cl">${coin(k)}<div><b>${COINS[k].name} coin</b><span>${COINS[k].value} Tick${COINS[k].value > 1 ? 's' : ''}</span></div></div>`).join('')}</div>`;
 
@@ -440,6 +444,8 @@
       <h3>${first ? 'Welcome to Tick' : 'How Tick works'}</h3>
       <div class="sub"><b>Time</b> is the same for everyone: <b>86,400 seconds</b> every day, gone at midnight.</div>
       <div class="sub" style="margin-top:8px"><b>Health</b> is your income: sleep, food, move, hygiene, home and family. Look after them and you <b>earn Ticks</b>.</div>
+      <div class="sub" style="margin-top:8px"><b>What the % means:</b> each of those six is a <b>gauge from 0% to 100%</b> — how looked-after it is right now. 100% = fully topped up, 0% = neglected. They slowly drain all day, and care deeds refill them: “Food gauge +35%” raises that gauge by 35 points (never past 100%). Your overall Health is 60% the average plus 40% your weakest gauge — below <b>40%</b> you can't start an investment.</div>
+      <div class="sub" style="margin-top:8px"><b>Combine deeds:</b> you can run up to <b>3 at once</b> — each earns or costs Ticks at its own rate, so cleaning while you learn works.</div>
       <div class="sub" style="margin-top:8px"><b>Investments</b> (learning, projects) cost Ticks now and <b>pay daily dividends</b> later. <b>Useless</b> deeds just cost — and cost 50% more if you're in debt.</div>
       ${coinList()}
       <label class="switch"><input type="checkbox" id="snd" ${S.sound ? 'checked' : ''}><span>Celebration sounds</span></label>
@@ -467,7 +473,7 @@
     const ID = x => T(x) && /^[\w:.\-]{1,80}$/.test(x), TXT = (x, n) => (T(x) ? x.slice(0, n) : '');
     const KINDS = ['care', 'invest', 'useless', 'neutral', 'hard'];
     const out = { onboarded: !!d.onboarded };
-    ['created', 'gift', 'lastStopped', 'divAt'].forEach(k => { if (N(d[k])) out[k] = d[k]; });
+    ['created', 'gift', 'divAt'].forEach(k => { if (N(d[k])) out[k] = d[k]; });
     out.deeds = A(d.deeds).filter(x => x && ID(x.id) && T(x.name) && KINDS.includes(x.kind) &&
       (x.kind === 'care' ? Object.prototype.hasOwnProperty.call(PILLARS, x.pillar) && ['timer', 'tap'].includes(x.mode) && N(x.pts) && x.pts > 0 : x.kind === 'neutral' || N(x.rate)))
       .map(x => ({ id: x.id, name: TXT(x.name, 40), color: PALETTE.includes(x.color) ? x.color : PALETTE[0], kind: x.kind, rate: N(x.rate) ? x.rate : 0,
@@ -483,7 +489,8 @@
     out.tomb = A(d.tomb).filter(ID);
     out.chat = A(d.chat).filter(c => c && (c.from === 'me' || c.from === 'bot') && T(c.text)).map(c => ({ from: c.from, text: TXT(c.text, 600) })).slice(-40);
     if (d.health && typeof d.health === 'object') { out.health = {}; Object.keys(PILLARS).forEach(k => { const h = d.health[k]; if (h && N(h.v) && N(h.t)) out.health[k] = { v: clamp(h.v, 0, 100), t: h.t }; }); }
-    if (d.active && ID(d.active.deedId) && N(d.active.start)) out.active = { deedId: d.active.deedId, start: d.active.start, startVal: N(d.active.startVal) ? d.active.startVal : 0, ...(N(d.active.startBal) ? { startBal: d.active.startBal } : {}) };
+    out.actives = [...A(d.actives), ...(d.active ? [d.active] : [])].filter(a => a && ID(a.deedId) && N(a.start)).slice(0, MAX_ACTIVE)
+      .map(a => ({ id: ID(a.id) ? a.id : 'run-' + a.start, deedId: a.deedId, start: a.start, startVal: N(a.startVal) ? a.startVal : 0, ...(N(a.startBal) ? { startBal: a.startBal } : {}) }));   // older backups had one running session
     return out;
   }
   function parseBackup(text) {
@@ -559,21 +566,41 @@
     return `<button class="deedbtn" data-start="${d.id}" ${d.kind === 'invest' && gated() ? 'disabled' : ''}><i class="dot" style="background:${d.color}"></i>${esc(d.name)}<em>${em}</em></button>`;
   };
   const group = (kind, title) => {
-    const ds = S.deeds.filter(d => d.kind === kind); if (!ds.length) return '';
+    const ds = S.deeds.filter(d => d.kind === kind && !isActive(d.id)); if (!ds.length) return '';
     return `<div class="glbl">${title}</div><div class="deeds">${ds.map(deedBtn).join('')}</div>`;
   };
 
   // ---------- The running timer (see timers.js) ----------
   const REDUCED = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
   const timerCtx = (d, el, t) => ({ kind: d.kind, elapsed: el, ticks: t, reduced: REDUCED, signHTML: tk, pillar: d.kind === 'care' && d.mode === 'timer' ? { name: PILLARS[d.pillar].name, pct: pv(d.pillar) } : null });
-  function stageHTML(d) {
-    const el = activeElapsed();
-    if (!window.TickTimers) return `<div id="stage"><div class="mid live" id="clock">${clock(el)}</div></div>`;   // timers.js failed to load: plain clock
-    return `<div id="stage">${TickTimers.render(timerCtx(d, el, ticksFor(S.active, el)))}</div>`;
+  const verbOf = d => ({ invest: 'Investing in', care: 'Looking after', useless: 'Spending on', neutral: 'Doing' }[d.kind]);
+  const netLbl = r => `${r >= 0 ? '+' : '−'}${Math.abs(r).toFixed(1)}/min`;
+  const comboNet = () => S.actives.reduce((sum, a) => sum + ticksFor(a, elapsedOf(a)), 0);
+  const comboRate = () => S.actives.reduce((sum, a) => { const d = deedOf(a.deedId); return sum + (d.kind === 'care' ? (d.mode === 'timer' ? careRate(d) : 0) : d.kind === 'neutral' ? 0 : -d.rate); }, 0);
+  const comboCtx = () => { const net = comboNet(); return { kind: net >= 0 ? 'care' : 'useless', elapsed: Math.max(0, ...S.actives.map(elapsedOf)), ticks: net, reduced: REDUCED, signHTML: tk, pillar: null, label: `${S.actives.length} deeds together · ${netLbl(comboRate())}` }; };
+  function stageHTML(a) {                                   // one running session: the Big number timer
+    const d = deedOf(a.deedId), el = elapsedOf(a);
+    if (!window.TickTimers) return `<div class="stage" data-sid="${a.id}"><div class="mid live">${clock(el)}</div></div>`;   // timers.js failed to load
+    return `<div class="stage" data-sid="${a.id}">${TickTimers.render(timerCtx(d, el, ticksFor(a, el)))}</div>`;
+  }
+  function runningHTML() {
+    const n = S.actives.length; if (!n) return '';
+    if (n === 1) { const a = S.actives[0], d = deedOf(a.deedId); return `<div class="card"><div class="sub"><span class="pulse"></span>${verbOf(d)} <b>${esc(d.name)}</b> · ${rateLbl(d)}</div>${stageHTML(a)}<button class="btn stop" data-stop="${a.id}">Stop</button></div>`; }
+    const stage = window.TickTimers ? `<div class="stage" data-combo="1">${TickTimers.render(comboCtx())}</div>` : '';
+    return `<div class="card"><div class="sub"><span class="pulse"></span>Doing <b>${n} things at once</b></div>${stage}
+      <div style="margin-top:6px">${S.actives.map(a => { const d = deedOf(a.deedId), el = elapsedOf(a), t = ticksFor(a, el);
+        return `<div class="row" data-row="${a.id}"><i class="dot" style="background:${d.color}"></i><div class="t"><b>${esc(d.name)}</b><span class="rk">${clock(el)} · ${rateLbl(d)}</span></div><div class="r"><b class="rt">${t >= 0 ? '+' : '−'}${Math.abs(t).toFixed(2)}</b></div><button class="chip" style="margin:0 0 0 8px" data-stop="${a.id}">Stop</button></div>`; }).join('')}</div>
+      <button class="btn stop" data-act="stopall">Stop all</button></div>`;
+  }
+  function updateStages() {
+    if (!window.TickTimers) return;
+    document.querySelectorAll('.stage[data-sid]').forEach(h => { const a = S.actives.find(x => x.id === h.dataset.sid); if (a) { const el = elapsedOf(a); TickTimers.update(timerCtx(deedOf(a.deedId), el, ticksFor(a, el)), h.firstElementChild); } });
+    const cb = document.querySelector('.stage[data-combo]'); if (cb) TickTimers.update(comboCtx(), cb.firstElementChild);
+    document.querySelectorAll('[data-row]').forEach(r => { const a = S.actives.find(x => x.id === r.dataset.row); if (!a) return; const el = elapsedOf(a), t = ticksFor(a, el); r.querySelector('.rk').textContent = `${clock(el)} · ${rateLbl(deedOf(a.deedId))}`; r.querySelector('.rt').textContent = `${t >= 0 ? '+' : '−'}${Math.abs(t).toFixed(2)}`; });
   }
 
   function viewWallet() {
-    const bal = balance(), { earned, spent } = dayEarnSpend(0), left = timeLeft(), debt = bal < -0.004, hs = healthScore();
+    const bal = balance(), { earned, spent } = dayEarnSpend(0), debt = bal < -0.004, hs = healthScore();
     return `
       ${head('Wallet')}
       <div class="card hero ${debt ? 'debt' : ''}" id="balhero">
@@ -585,16 +612,13 @@
       <div class="card">
         <div style="display:flex;justify-content:space-between;align-items:baseline"><b>Time left today</b><span class="mid live" id="hms" style="font-size:22px">${hms(dayRemaining())}</span></div>
         <div class="bar"><i id="bar" style="width:${((DAY - dayRemaining()) / DAY) * 100}%"></i></div>
-        <div class="sub" style="margin-top:6px" id="tracked">${dur(DAY - timeLeft())} tracked today · 86,400 seconds a day for everyone · expires at midnight</div>
+        <div class="sub" style="margin-top:6px" id="tracked">${dur(trackedToday())} tracked today · 86,400 seconds a day for everyone · expires at midnight</div>
       </div>
+      ${runningHTML()}
       <div class="card">
-        ${S.active ? (() => { const d = deedOf(S.active.deedId); return `
-          <div class="sub"><span class="pulse"></span>${{ invest: 'Investing in', care: 'Looking after', useless: 'Spending on', neutral: 'Doing' }[d.kind]} <b>${esc(d.name)}</b> · ${rateLbl(d)}</div>
-          ${stageHTML(d)}
-          <button class="btn stop" data-act="stop">Stop</button>`; })() : `
-          <div class="mid">What are you doing?</div>
-          <div class="sub">${gated() ? `Health is too low to invest — refill ${lowest(2).map(k => PILLARS[k].name).join(' or ')} first.` : 'Looking after yourself earns Ticks. Investing pays back later. Useless things just cost.'}</div>
-          ${group('care', 'Look after yourself · earns')}${group('invest', 'Invest · pays back later')}${group('useless', 'Spend · no return')}${group('neutral', 'Just living')}`}
+        <div class="mid">${S.actives.length ? 'Add another' : 'What are you doing?'}</div>
+        <div class="sub">${S.actives.length >= MAX_ACTIVE ? `You are doing ${MAX_ACTIVE} things at once — stop one to start another.` : gated() ? `Health is too low to invest — refill ${lowest(2).map(k => PILLARS[k].name).join(' or ')} first.` : `Looking after yourself earns Ticks. Investing pays back later. Useless things just cost.${S.actives.length ? ` (${S.actives.length} of ${MAX_ACTIVE} running)` : ` You can combine up to ${MAX_ACTIVE} at once — like cleaning while you learn.`}`}</div>
+        ${S.actives.length >= MAX_ACTIVE ? '' : `${group('care', 'Look after yourself · earns')}${group('invest', 'Invest · pays back later')}${group('useless', 'Spend · no return')}${group('neutral', 'Just living')}`}
       </div>
       <h2>Where today went</h2>
       <div class="card" id="where">${whereHTML()}</div>`;
@@ -610,7 +634,7 @@
   function viewDeeds() {
     const byT = dayByDeed(0), byK = dayTicksByDeed(0);
     const sub = d => d.kind === 'care'
-      ? `${PILLARS[d.pillar].name} · ${d.mode === 'tap' ? `+${nf(d.pts)}% per check-in · +${nf(careRate(d))} Ticks` : `+${nf(d.pts)}%/min · +${nf(careRate(d))} Ticks/min`}`
+      ? `${PILLARS[d.pillar].name} gauge · ${d.mode === 'tap' ? `+${nf(d.pts)}% per check-in · +${nf(careRate(d))} Ticks` : `+${nf(d.pts)}%/min · +${nf(careRate(d))} Ticks/min`}`
       : `${rateLbl(d)} · ${dur(byT[d.id] || 0)} today`;
     const grp = (kind, title) => {
       const ds = S.deeds.filter(d => d.kind === kind); if (!ds.length) return '';
@@ -635,7 +659,7 @@
     const named = S.deeds.find(d => l.includes(d.name.toLowerCase()));
     if (/health|pillar|tired|energy/.test(l)) {
       const ks = lowest(2);
-      return `Health is ${Math.round(healthScore())}%. Lowest: ${PILLARS[ks[0]].name} ${Math.round(pv(ks[0]))}%, ${PILLARS[ks[1]].name} ${Math.round(pv(ks[1]))}%.` + (gated() ? '\nThat is too low to invest — refill a pillar first.' : '');
+      return `Health is ${Math.round(healthScore())}% (each pillar is a 0–100% gauge: 0% neglected, 100% fully looked after). Lowest: ${PILLARS[ks[0]].name} ${Math.round(pv(ks[0]))}%, ${PILLARS[ks[1]].name} ${Math.round(pv(ks[1]))}%.` + (gated() ? '\nThat is too low to invest — refill a pillar first.' : '');
     }
     const mt = l.replace(/,/g, '').match(/(\d+(?:\.\d+)?)\s*ticks?\b/);
     if (mt) {
@@ -658,7 +682,7 @@
       return `${dur(secs)} of ${d.name} costs no Ticks, but uses ${pct}% of today's time.`;
     }
     if (/tick|balance|wallet|have|afford|debt/.test(l)) return bal < 0 ? `You are ${t1(-bal)} Ticks in debt. Look after yourself to earn your way back above zero.` : `You have ${t1(bal)} Ticks. Caring for yourself earns more, and investments pay dividends.`;
-    if (/left|time/.test(l)) return `You have ${hms(timeLeft())} of today's time left. It expires at midnight.`;
+    if (/left|time/.test(l)) return `You have ${hms(dayRemaining())} of today left. It expires at midnight.`;
     if (/earn|spen[dt]|top|most|where/.test(l)) { const { earned, spent } = dayEarnSpend(0); return `Today: +${t1(earned)} earned, −${t1(spent)} spent. Net ${signed(earned - spent)} Ticks.`; }
     return 'Try “2h scrolling”, “2h learn to code”, “100 ticks”, “how is my health?” or “how many Ticks do I have?”';
   }
@@ -677,7 +701,7 @@
         <div class="card"><div class="mid">${tk}${num(spent)}</div><div class="sub">Invested so far</div></div>
         <div class="card"><div class="mid">${tk}${num(returned)}</div><div class="sub">Paid back</div></div>
       </div>
-      ${S.active && deedOf(S.active.deedId).kind === 'invest' ? `<div class="card"><div class="sub"><span class="pulse"></span>Investing in <b>${esc(deedOf(S.active.deedId).name)}</b></div>${stageHTML(deedOf(S.active.deedId))}<button class="btn stop" data-act="stop">Stop</button></div>` : ''}
+      ${S.actives.filter(a => deedOf(a.deedId).kind === 'invest').map(a => `<div class="card"><div class="sub"><span class="pulse"></span>Investing in <b>${esc(deedOf(a.deedId).name)}</b></div>${stageHTML(a)}<button class="btn stop" data-stop="${a.id}">Stop</button></div>`).join('')}
       ${st.length ? st.map(x => `
         <div class="card">
           <div style="display:flex;justify-content:space-between;align-items:center"><div class="mid">${esc(x.d.name)}</div><button class="x edit" data-edit="${x.d.id}" aria-label="Edit ${esc(x.d.name)}">✎</button></div>
@@ -688,7 +712,7 @@
           </div>
           <div class="sub" style="margin-top:10px">${x.spent < 1 ? 'Just getting started — put a few hours in.' : x.net >= 0 ? 'In profit ✓' : `Break-even: ${fmtDays(x.days)}`}</div>
           ${(() => { const n = S.notes.find(q => q.deedId === x.d.id); const cnt = S.notes.filter(q => q.deedId === x.d.id).length; return n ? `<div class="jtext sub" style="margin-top:10px;font-style:italic">“${esc(n.text || 'Rated ' + n.rating + '/5')}”</div><div class="sub" style="font-size:12px">${cnt} note${cnt === 1 ? '' : 's'} in your Journal</div>` : ''; })()}
-          <div style="display:flex;gap:10px;align-items:center;margin-top:12px"><button class="btn" style="margin:0;flex:1" data-start="${x.d.id}" ${(S.active || gated()) ? 'disabled' : ''}>${gated() ? 'Health too low' : 'Invest now'}</button><button class="chip" style="margin:0" data-add-note="${x.d.id}">+ note</button></div>
+          <div style="display:flex;gap:10px;align-items:center;margin-top:12px"><button class="btn" style="margin:0;flex:1" data-start="${x.d.id}" ${(S.actives.length >= MAX_ACTIVE || isActive(x.d.id) || gated()) ? 'disabled' : ''}>${isActive(x.d.id) ? 'Running…' : gated() ? 'Health too low' : S.actives.length >= MAX_ACTIVE ? '3 running' : 'Invest now'}</button><button class="chip" style="margin:0" data-add-note="${x.d.id}">+ note</button></div>
         </div>`).join('') : '<div class="card"><div class="empty">No investments yet.<br>Tap + to add one, like “Learn to code”.</div></div>'}
       <h2>What if…?</h2>
       <div class="card">
@@ -744,7 +768,7 @@
     // where Ticks came from / went
     const tin = {}, tout = {};
     S.entries.forEach(e => { if (e.ts < from || !e.ticks) return; const c = catOf(e); const m = e.ticks > 0 ? tin : tout; m[c] = (m[c] || 0) + Math.abs(e.ticks); });
-    if (S.active) { const t = activeTicks(from, Infinity), d = deedOf(S.active.deedId), c = d.kind === 'care' ? 'care' : d.kind === 'invest' ? 'invest' : 'useless'; if (t > 0) tin[c] = (tin[c] || 0) + t; else if (t < 0) tout[c] = (tout[c] || 0) - t; }
+    S.actives.forEach(a => { const t = activeTicksOf(a, from, Infinity), d = deedOf(a.deedId), c = d.kind === 'care' ? 'care' : d.kind === 'invest' ? 'invest' : 'useless'; if (t > 0) tin[c] = (tin[c] || 0) + t; else if (t < 0) tout[c] = (tout[c] || 0) - t; });
     const catMax = Math.max(1, ...Object.values(tin), ...Object.values(tout));
     const catRows = (m, cls) => Object.entries(m).sort((a, b) => b[1] - a[1]).map(([c, v]) => `
       <div class="crow"><div class="cn"><span>${CAT[c]}</span><b>${cls === 'in' ? '+' : '−'}${t1(v)}</b></div><div class="cb"><i class="${cls}" style="width:${(v / catMax) * 100}%"></i></div></div>`).join('');
@@ -804,39 +828,40 @@
     const dk = new Date().toDateString();
     if (lastKey && lastKey !== dk) render();
     lastKey = dk;
-    if (S.active && deedOf(S.active.deedId).kind === 'invest' && gated()) { stopActive(); flash('Health is too low — session stopped'); return; }
-    const bal = balance(), { earned, spent } = dayEarnSpend(0), left = timeLeft(), debt = bal < -0.004, hs = healthScore();
+    const drained = S.actives.find(a => deedOf(a.deedId).kind === 'invest' && gated());
+    if (drained) { stopSession(drained.id); flash('Health is too low — investing stopped'); return; }
+    const bal = balance(), { earned, spent } = dayEarnSpend(0), debt = bal < -0.004, hs = healthScore();
     const set = (id, h) => { const e = $(id); if (e) e.innerHTML = h; };
     set('#bal', tk + tBig(bal));
     set('#ballbl', debt ? 'In debt · useless time costs +50%' : 'Your Ticks');
     const hero = $('#balhero'); if (hero) hero.classList.toggle('debt', debt);
     set('#earnline', `+${t1(earned)} earned today · −${t1(spent)} spent`);
     set('#hscore', `${Math.round(hs)}<small>%</small>`); set('#hsub', healthSub()); set('#pillars', pillarsHTML());
-    set('#hms', hms(dayRemaining())); set('#tracked', `${dur(DAY - left)} tracked today · 86,400 seconds a day for everyone · expires at midnight`);
+    set('#hms', hms(dayRemaining())); set('#tracked', `${dur(trackedToday())} tracked today · 86,400 seconds a day for everyone · expires at midnight`);
     if ($('#divs')) set('#divs', tk + tBig(S.deeds.filter(d => d.kind === 'invest').reduce((a, d) => a + dividendPerDay(d), 0)));
     const bar = $('#bar'); if (bar) bar.style.width = ((DAY - dayRemaining()) / DAY) * 100 + '%';
     let b = Math.max(0, Math.floor(bal));
     ['hundred', 'ten', 'tick'].forEach(k => { const n = Math.floor(b / COINS[k].value); b -= n * COINS[k].value; const e = $(`[data-coin="${k}"]`); if (e) e.textContent = n; });
-    if (S.active) {
-      const d = deedOf(S.active.deedId), el = activeElapsed(), t = ticksFor(S.active, el);
-      const stg = $('#stage');
-      if (stg) { if (window.TickTimers) TickTimers.update(timerCtx(d, el, t), stg.firstElementChild); else { const c = $('#clock'); if (c) c.textContent = clock(el); } }
-      const wh = $('#where'); if (wh) wh.innerHTML = whereHTML();
-    }
+    if (S.actives.length) { updateStages(); const wh = $('#where'); if (wh) wh.innerHTML = whereHTML(); }
   }
   setInterval(tick, 250);
 
-  function stopActive(opts = {}) {
-    const a = S.active; if (!a) return;
-    const d = deedOf(a.deedId), end = Math.min(Date.now(), a.start + DAY * 1000), secs = (end - a.start) / 1000;
+  // stop one running session (by its id) and bank it
+  function stopSession(id, opts = {}) {
+    const i = S.actives.findIndex(a => a.id === id); if (i < 0) return;
+    const a = S.actives[i], d = deedOf(a.deedId), end = Math.min(Date.now(), a.start + DAY * 1000), secs = (end - a.start) / 1000;
     const isInv = d.kind === 'invest', cost = isInv ? d.rate * secs / 60 : 0, divBefore = isInv ? dividendPerDay(d) : 0;
     const isCare = d.kind === 'care' && d.mode === 'timer', careEarn = isCare ? ticksFor(a, secs) : 0, careBefore = isCare ? hBase(d.pillar) : 0;
-    S.active = null; S.lastStopped = Math.max(S.lastStopped || 0, a.start);
+    S.actives.splice(i, 1); gone(a.id);                     // the tombstone stops a finished session coming back from another device
     addSpan(a, end);
-    if (d.kind === 'care' && d.mode === 'timer' && d.pts > 0) refill(d.pillar, d.pts * (end - a.start) / 60000);
-    save(); render();
-    if (!opts.silent && isInv && secs >= 10) investSummary(d, secs, cost, divBefore, dividendPerDay(d));   // popup: what did you get from this?
-    if (!opts.silent && isCare && secs >= 10) careSummary(d, secs, careEarn, careBefore, hBase(d.pillar));
+    if (isCare && d.pts > 0) refill(d.pillar, d.pts * (end - a.start) / 60000);
+    save(); if (!opts.noRender) render();
+    const popup = isInv && secs >= 10 ? () => investSummary(d, secs, cost, divBefore, dividendPerDay(d)) : isCare && secs >= 10 ? () => careSummary(d, secs, careEarn, careBefore, hBase(d.pillar)) : null;
+    if (!opts.silent && popup) { if (opts.defer) sheetQueue.push(popup); else popup(); }
+  }
+  function stopAll() {
+    S.actives.map(a => a.id).forEach(id => stopSession(id, { defer: true, noRender: true }));
+    render(); if (sheetQueue.length) sheetQueue.shift()();   // the summaries then open one after another
   }
 
   // ---------- sheets ----------
@@ -886,13 +911,13 @@
           fields = { ...fields, pillar: $('#cp', w).value, mode: $('#cm', w).value, pts, rate: 0 };
         } else fields = { ...fields, rate: 0, pillar: undefined, mode: undefined, pts: undefined };
         if (ed) {
-          if (S.active && S.active.deedId === ed.id) stopActive({ silent: true });   // bank the running session at the old settings first
+          S.actives.filter(a => a.deedId === ed.id).forEach(a => stopSession(a.id, { silent: true, noRender: true }));   // bank any running session at the old settings first
           Object.assign(ed, fields, { mod: Date.now() });
         } else S.deeds.push({ id: uid(), ...fields, mod: Date.now() });
         save(); closeSheet(); render();
       };
       const del = $('#del', w);
-      if (del) del.onclick = () => { if (confirm(`Delete “${ed.name}”? Your history keeps its time and Ticks.`)) { if (S.active && S.active.deedId === ed.id) stopActive({ silent: true }); S.deeds = S.deeds.filter(x => x.id !== ed.id); gone(ed.id); save(); closeSheet(); render(); } };
+      if (del) del.onclick = () => { if (confirm(`Delete “${ed.name}”? Your history keeps its time and Ticks.`)) { S.actives.filter(a => a.deedId === ed.id).forEach(a => stopSession(a.id, { silent: true, noRender: true })); S.deeds = S.deeds.filter(x => x.id !== ed.id); gone(ed.id); save(); closeSheet(); render(); } };
       $('#dn', w).focus();
     });
   }
@@ -900,7 +925,7 @@
   const deedOptions = () => loggable().map(d => `<option value="${d.id}">${esc(d.name)} (${rateLbl(d)})</option>`).join('');
   function logPastSheet() {
     if (!loggable().length) return;
-    openSheet(`<h3>Log time already spent</h3><div class="sub">${hms(timeLeft())} of time left today.</div>
+    openSheet(`<h3>Log time already spent</h3><div class="sub">You can log up to ${dur(DAY - dayRemaining())} (today so far).</div>
       <label class="l">Deed</label><select class="field sel" id="ld">${deedOptions()}</select>
       <label class="l">Minutes</label><input class="field" id="lm" type="number" inputmode="decimal" min="1" step="1" placeholder="30">
       <div class="sub" id="lv" style="margin-top:10px"></div>
@@ -908,7 +933,7 @@
       const calc = () => {
         const d = deedOf($('#ld', w).value), m = parseFloat($('#lm', w).value);
         if (!(m > 0)) return null;
-        const mins = Math.min(m, timeLeft() / 60);
+        const mins = Math.min(m, (DAY - dayRemaining()) / 60);
         let ticks = 0, gain = 0;
         if (d.kind === 'invest') ticks = -d.rate * mins;
         else if (d.kind === 'useless') ticks = -uselessCost(d.rate, mins, ticksSaved());
@@ -961,10 +986,12 @@
     if (d.tap) { tapCare(d.tap); return; }
     if (d.start) {
       const dd = deedOf(d.start);
-      if (S.active || timeLeft() <= 0) return;
+      if (isActive(d.start) || dayRemaining() <= 0) return;
+      if (S.actives.length >= MAX_ACTIVE) { flash(`You can do up to ${MAX_ACTIVE} things at once`); return; }
       if (dd.kind === 'invest' && gated()) { flash('Health is too low to invest — refill a pillar first'); return; }
-      S.active = { deedId: d.start, start: Date.now(), startVal: dd.kind === 'care' ? hBase(dd.pillar) : 0, startBal: balance() }; save(); render(); return;
+      S.actives.push({ id: uid(), deedId: d.start, start: Date.now(), startVal: dd.kind === 'care' ? hBase(dd.pillar) : 0, startBal: balance() }); save(); render(); return;
     }
+    if (d.stop) { stopSession(d.stop); return; }
     if (d.range) { histRange = +d.range; render(); return; }
     if (d.buy) { buyGoal(d.buy, t); return; }
     if (d.editNote) { editNoteSheet(d.editNote); return; }
@@ -973,7 +1000,7 @@
     if (d.editGoal) { goalSheet(d.editGoal); return; }
     if (d.edit) { deedSheet(d.edit); return; }
     switch (d.act) {
-      case 'stop': stopActive(); break;
+      case 'stopall': stopAll(); break;
       case 'histmore': histMore = !histMore; render(); break;
       case 'about': aboutSheet(false); break;
       case 'account': accountSheet(); break;
@@ -1024,6 +1051,8 @@
   // Merge two states without losing anything: entries / notes / bought are unioned by id, deeds and goals take the newer edit,
   // deletes are remembered as tombstones, dividends are keyed by deed+day (so two devices can't double-pay them).
   function mergeStates(l, c) {
+    const legacy = st => (st.active && !Array.isArray(st.actives) ? { ...st, actives: [{ id: 'run-' + st.active.start, ...st.active }] } : st);
+    l = legacy(l); c = legacy(c);                                          // a device on the older version still has ONE running session
     const dead = new Set([...(l.tomb || []), ...(c.tomb || [])]);
     const byId = (a, b, pick) => { const m = new Map(); [...(a || []), ...(b || [])].forEach(x => { if (dead.has(x.id)) return; const o = m.get(x.id); m.set(x.id, o ? pick(o, x) : x); }); return [...m.values()]; };
     const newer = k => (a, b) => ((b[k] || 0) > (a[k] || 0) ? b : a);
@@ -1044,8 +1073,8 @@
     });
     out.entries = [...ent.values()].sort((a, b) => a.ts - b.ts);
     out.health = Object.fromEntries(Object.keys(PILLARS).map(k => { const a = (l.health || {})[k], b = (c.health || {})[k]; return [k, !a ? b : !b ? a : (b.t > a.t ? b : a)]; }));
-    out.lastStopped = Math.max(l.lastStopped || 0, c.lastStopped || 0);
-    out.active = [l.active, c.active].filter(a => a && a.start > out.lastStopped).sort((a, b) => b.start - a.start)[0] || null;
+    out.actives = byId(l.actives, c.actives, a => a).slice(0, MAX_ACTIVE);   // running sessions: unioned by id; a stopped one is in the tombstones
+    delete out.active; delete out.lastStopped;
     out.divAt = Math.max(l.divAt || 0, c.divAt || 0) || Date.now();
     out.sound = l.sound; out.chat = l.chat || c.chat || [];
     return out;

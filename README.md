@@ -13,6 +13,7 @@ Three layers:
 You earn Ticks by refilling what has drained: **Ticks = health points refilled × the pillar's price** (`PILLARS` in `app.js`).
 A pillar that is already full pays nothing, so nothing can be farmed. A day of proper upkeep earns roughly 230 Ticks.
 
+- **What the % means:** each pillar is a **gauge from 0% to 100%** — how looked-after that need is *right now* (100% = fully topped up, 0% = neglected). Gauges drain slowly all day and care deeds refill them: *"Food gauge +35%"* raises that gauge by 35 points, never past 100%.
 - Overall Health = 60% average of the pillars + 40% your weakest pillar.
 - **Gate:** below **40%** you can't start an investment (and a running one stops). Look after yourself first.
 
@@ -43,9 +44,17 @@ Ticks can go below zero. In debt, **useless** time costs **+50%**. Earned Ticks 
 | **Useless** | Scrolling, Gaming | costs |
 | **Just living** | anything custom | time only |
 
-## The live timer
+## The live timer — and combining deeds
 
-While a deed runs you see the **Big number** timer: huge time digits that roll as they change, a soft glow (green while you earn or invest, calmer while you waste time), a thin line that fills every minute, and your **live session Ticks** underneath (`+ Ŧ. 8.11`) — plus the pillar's level for care deeds. It lives in `timers.js` and honours the system *reduce motion* setting.
+While a deed runs you see the **Big number** timer: huge time digits that roll as they change, a soft glow, a thin line that fills every minute, and your **live session Ticks** underneath (`+ Ŧ. 8.11`) — plus the pillar's gauge for care deeds.
+
+**You can run up to 3 deeds at once** — a care deed, an investment and a useless one in any mix (cleaning while you learn, say). Each earns or costs Ticks at its own rate, and each is banked separately when it stops.
+
+- With one running you get the big timer; with two or three you get one **combined card** (big clock + the **net** Ticks, plus a row per deed with its own clock, live Ticks and a **Stop** button, and **Stop all**).
+- A deed that is already running isn't offered again, and at 3 you're asked to stop one first.
+- Each deed's time counts in full for that deed, but the Wallet's *tracked today* never exceeds the real time so far — doing things together doesn't make the day longer.
+- Stopping several at once queues their summary pop-ups one after another. Low Health stops running investments (not care deeds).
+- Sessions sync between devices; a stop on one device doesn't bring the session back on another. Older saves with one running session upgrade automatically.
 
 ## Notes & Journal
 
