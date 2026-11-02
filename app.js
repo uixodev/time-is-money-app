@@ -48,6 +48,7 @@
     active: null,  // {deedId, start, startVal}
     goals: [],     // {id, name, target (Ticks)}
     bought: [],    // {id, name, cost, ts} rewards you've bought
+    sound: true,   // celebration sounds
     chat: [],
   });
   const sgn = d => d.kind === 'hard' || d.kind === 'care' ? 1 : d.kind === 'useless' ? -1 : 0;
@@ -213,14 +214,65 @@
     save(); flash(`${PILLARS[d.pillar].name} +${nf(gain)}% · +${t1(ticks)} Ticks`); render();
   }
 
-  function buyGoal(id) {
+  // ---------- celebration: confetti + chime ----------
+  let audioCtx = null;
+  function chime() {
+    if (!S.sound) return;
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
+      audioCtx = audioCtx || new AC(); if (audioCtx.state === 'suspended') audioCtx.resume();
+      const t0 = audioCtx.currentTime + 0.02;
+      const note = (f, at, len, type, vol) => {
+        const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+        o.type = type; o.frequency.value = f;
+        g.gain.setValueAtTime(0.0001, t0 + at);
+        g.gain.exponentialRampToValueAtTime(vol, t0 + at + 0.015);
+        g.gain.exponentialRampToValueAtTime(0.0001, t0 + at + len);
+        o.connect(g); g.connect(audioCtx.destination); o.start(t0 + at); o.stop(t0 + at + len + 0.05);
+      };
+      [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => note(f, i * 0.085, 0.32, 'triangle', 0.16));   // C E G C — a little fanfare
+      [1046.5, 1318.5, 1568].forEach(f => note(f, 0.36, 0.7, 'sine', 0.1));                              // sparkly final chord
+      note(2093, 0.36, 0.25, 'sine', 0.05);
+    } catch {}
+  }
+  function confetti(originEl) {
+    if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const app = $('#app'), box = app.getBoundingClientRect(), r = originEl ? originEl.getBoundingClientRect() : null;
+    const ox = r ? r.left + r.width / 2 - box.left : box.width / 2, oy = r ? r.top + r.height / 2 - box.top : box.height * 0.6;
+    const cv = document.createElement('canvas'); cv.className = 'confetti';
+    const dpr = window.devicePixelRatio || 1; cv.width = box.width * dpr; cv.height = box.height * dpr; app.appendChild(cv);
+    const ctx = cv.getContext('2d'); ctx.scale(dpr, dpr);
+    const dark = window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches;
+    const COL = ['#C9F26B', '#6FBF3B', '#2F6B2A', dark ? '#F5F8EC' : '#16210F', '#A9C79B', '#C9F26B'];
+    const mk = (x, y, vx, vy) => ({ x, y, vx, vy, w: 7 + Math.random() * 7, h: 5 + Math.random() * 7, rot: Math.random() * 6, vr: (Math.random() - 0.5) * 0.4, c: COL[(Math.random() * COL.length) | 0], round: Math.random() < 0.3 });
+    const P = [
+      // burst from the button…
+      ...Array.from({ length: 90 }, () => { const a = -Math.PI / 2 + (Math.random() - 0.5) * 2.6, v = 5 + Math.random() * 8; return mk(ox, oy, Math.cos(a) * v, Math.sin(a) * v); }),
+      // …plus a shower from the top so the whole screen celebrates
+      ...Array.from({ length: 70 }, () => mk(Math.random() * box.width, -20 - Math.random() * 160, (Math.random() - 0.5) * 2, 1.5 + Math.random() * 3)),
+    ];
+    const start = performance.now();
+    (function frame(now) {
+      const t = now - start; ctx.clearRect(0, 0, box.width, box.height);
+      P.forEach(p => {
+        p.vy += 0.3; p.vx *= 0.992; p.x += p.vx; p.y += p.vy; p.rot += p.vr;
+        ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot); ctx.globalAlpha = Math.max(0, Math.min(1, (2600 - t) / 700));
+        ctx.fillStyle = p.c; ctx.strokeStyle = dark ? '#0F1609' : '#16210F'; ctx.lineWidth = 1.2;
+        if (p.round) { ctx.beginPath(); ctx.arc(0, 0, p.w / 2, 0, 7); ctx.fill(); ctx.stroke(); } else { ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h); }
+        ctx.restore();
+      });
+      if (t < 2600) requestAnimationFrame(frame); else cv.remove();
+    })(start);
+  }
+
+  function buyGoal(id, el) {
     const g = S.goals.find(x => x.id === id); if (!g) return;
     if (balance() < g.target) { flash(`You need ${t1(g.target - balance())} more Ticks`); return; }
     const rid = `reward:${uid()}`, ts = Date.now();
     S.bought.unshift({ id: rid, name: g.name, cost: g.target, ts });
     S.entries.push({ id: uid(), deedId: rid, ts, secs: 0, ticks: -g.target });
     S.goals = S.goals.filter(x => x.id !== id);
-    save(); flash(`Enjoy! “${g.name}” is yours 🎉`); render();
+    save(); flash(`Enjoy! “${g.name}” is yours 🎉`); render(); confetti(el); chime();
   }
 
   // ---------- ui state ----------
@@ -246,8 +298,10 @@
       <div class="sub" style="margin-top:8px"><b>Health</b> is your engine: sleep, food, move, hygiene, home and family. Look after them or you can't earn.</div>
       <div class="sub" style="margin-top:8px"><b>Ticks</b> are your money. Hard deeds and caring for yourself earn them. Useless deeds cost them — go below zero and they cost 50% more.</div>
       ${coinList()}
+      <label class="switch"><input type="checkbox" id="snd" ${S.sound ? 'checked' : ''}><span>Celebration sounds</span></label>
       <button class="btn" id="ok">${first ? `Start with ${S.gift} Ticks` : 'Got it'}</button>
       ${first ? '' : '<button class="link" id="reset">Reset all data</button>'}`, w => {
+      $('#snd', w).onchange = e => { S.sound = e.target.checked; save(); if (S.sound) chime(); };
       $('#ok', w).onclick = () => { S.onboarded = true; save(); closeSheet(); render(); };
       const r = $('#reset', w);
       if (r) r.onclick = () => { if (confirm('Delete all deeds, history and goals?')) { S = defaults(); save(); closeSheet(); render(); } };
@@ -391,7 +445,7 @@
       ${S.goals.length ? S.goals.map((g, i) => {
         const pct = Math.min(100, (bal / g.target) * 100), cls = ['peach', 'mint', 'sky'][i % 3], need = g.target - balance(), can = need <= 0;
         return `<div class="card ${cls}">
-          <div style="display:flex;justify-content:space-between"><div class="mid">${esc(g.name)}</div><button class="x" data-del-goal="${g.id}" aria-label="Delete goal">✕</button></div>
+          <div style="display:flex;justify-content:space-between"><div class="mid">${esc(g.name)}</div><button class="x edit" data-edit-goal="${g.id}" aria-label="Edit ${esc(g.name)}">✎</button></div>
           <div class="big">${tk}${num(Math.min(bal, g.target))}</div>
           <div class="sub">of ${tk}${num(g.target)} · ${can ? 'You can afford it 🎉' : `${num(need)} to go ≈ ${dur(need / hr * 60)} of hard work`}</div>
           <div class="bar"><i style="width:${pct}%"></i></div>
@@ -559,15 +613,22 @@
       };
     });
   }
-  function addGoalSheet() {
-    openSheet(`<h3>New goal</h3><div class="sub">A guilt-free reward to earn Ticks for.</div>
-      <label class="l">Reward</label><input class="field" id="gn" maxlength="30" placeholder="Gaming weekend">
-      <label class="l">Ticks needed</label><input class="field" id="gt" type="number" inputmode="decimal" min="1" placeholder="600">
-      <button class="btn" id="ok">Create goal</button>`, w => {
+  function goalSheet(id) {
+    const ed = id ? S.goals.find(g => g.id === id) : null;
+    openSheet(`<h3>${ed ? 'Edit goal' : 'New goal'}</h3><div class="sub">A guilt-free reward to earn Ticks for.</div>
+      <label class="l">Reward</label><input class="field" id="gn" maxlength="30" placeholder="Gaming weekend" value="${ed ? esc(ed.name) : ''}">
+      <label class="l">Ticks needed</label><input class="field" id="gt" type="number" inputmode="decimal" min="1" placeholder="600" value="${ed ? ed.target : ''}">
+      <button class="btn" id="ok">${ed ? 'Save changes' : 'Create goal'}</button>
+      ${ed ? '<button class="link" id="del">Delete this goal</button>' : ''}`, w => {
       $('#ok', w).onclick = () => {
-        const name = $('#gn', w).value.trim(), t = parseFloat($('#gt', w).value); if (!name || !(t > 0)) return;
-        S.goals.push({ id: uid(), name, target: t }); save(); closeSheet(); render();
+        const name = $('#gn', w).value.trim(), t = parseFloat($('#gt', w).value);
+        if (!name) { $('#gn', w).focus(); return; } if (!(t > 0)) { $('#gt', w).focus(); return; }
+        if (ed) Object.assign(ed, { name, target: t }); else S.goals.push({ id: uid(), name, target: t });
+        save(); closeSheet(); render();
       };
+      const del = $('#del', w);
+      if (del) del.onclick = () => { if (confirm(`Delete the goal “${ed.name}”?`)) { S.goals = S.goals.filter(g => g.id !== ed.id); save(); closeSheet(); render(); } };
+      $('#gn', w).focus();
     });
   }
 
@@ -588,7 +649,8 @@
       if (dd.kind === 'hard' && gated()) { flash('Health is too low — refill a pillar first'); return; }
       S.active = { deedId: d.start, start: Date.now(), startVal: dd.kind === 'care' ? hBase(dd.pillar) : 0 }; save(); render(); return;
     }
-    if (d.buy) { buyGoal(d.buy); return; }
+    if (d.buy) { buyGoal(d.buy, t); return; }
+    if (d.editGoal) { goalSheet(d.editGoal); return; }
     if (d.edit) { deedSheet(d.edit); return; }
     if (d.delGoal) { S.goals = S.goals.filter(g => g.id !== d.delGoal); save(); render(); return; }
     switch (d.act) {
@@ -596,7 +658,7 @@
       case 'about': aboutSheet(false); break;
       case 'adddeed': deedSheet(); break;
       case 'logpast': logPastSheet(); break;
-      case 'addgoal': addGoalSheet(); break;
+      case 'addgoal': goalSheet(); break;
     }
   });
   document.addEventListener('submit', e => { if (e.target.id === 'askform') { e.preventDefault(); ask($('#q').value); } });

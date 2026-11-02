@@ -39,7 +39,7 @@ The currency sign is a struck T with a seconds pip (`brand/`).
 - **Wallet** – Ticks balance, Health pillars, what are you doing, coin purse, time left, where today went.
 - **Deeds** – hard / care / useless / living deeds. Add, edit (✎) or delete; log time you already spent.
 - **Ask** – "2h scrolling", "100 ticks", "how is my health?".
-- **Goals** – guilt-free rewards with how much hard work they need. Reach the target, then tap **Buy it** to spend the Ticks; bought rewards are kept in a list.
+- **Goals** – guilt-free rewards with how much hard work they need. Edit (✎) or delete them. Reach the target, then tap **Buy it** to spend the Ticks — with confetti and a chime (switch sounds off in the Ŧ. menu); bought rewards are kept in a list.
 - **History** – earned vs. spent, 7-day time chart, day by day.
 
 Colours: light lime `#C9F26B`, forest ink `#16210F`, tonal greens. Dark mode included.
