@@ -5,7 +5,7 @@
 (() => {
   'use strict';
   const KEY = 'tick.v1';
-  const VERSION = 'v15 · accounts & cloud sync';   // bump with the ?v= number in index.html so browsers fetch fresh files
+  const VERSION = 'v16 · accounts & cloud sync';   // bump with the ?v= number in index.html so browsers fetch fresh files
   const DAY = 86400;
   const $ = (s, el = document) => el.querySelector(s);
   // one tonal green family (+ ink) so every deed colour belongs to the brand
@@ -896,6 +896,11 @@
   if (cfg.SUPABASE_URL && cfg.SUPABASE_ANON_KEY && window.supabase && window.supabase.createClient) {
     try { sb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } }); } catch { sb = null; }
   }
+  // Where confirmation / reset / Google links return to. A page opened as a local file reports its origin as the word "null",
+  // which made links point at "null" — so outside http(s) fall back to the published site.
+  const isWeb = /^https?:$/.test(location.protocol);
+  const returnUrl = () => (isWeb ? location.origin + location.pathname : (cfg.SITE_URL || ''));
+  const redirectOpt = key => { const u = returnUrl(); return u ? { [key]: u } : {}; };
   const libMissing = !!(cfg.SUPABASE_URL && cfg.SUPABASE_ANON_KEY) && !sb;
   const payload = () => { const d = JSON.parse(JSON.stringify(S)); delete d.sound; return d; };   // sound is a per-device setting
   const isPristine = st => !st.entries.length && !st.notes.length && !st.goals.length && !(st.bought || []).length;
@@ -1010,6 +1015,7 @@
       <div class="pills" style="margin:14px 0 0"><button class="pill ${signin ? 'on' : ''}" data-m="signin">Sign in</button><button class="pill ${!signin ? 'on' : ''}" data-m="signup">Create account</button></div>
       <label class="l">Email</label><input class="field" id="em" type="email" autocomplete="email" inputmode="email" placeholder="you@gmail.com">
       <label class="l">Password</label><input class="field" id="pw" type="password" autocomplete="${signin ? 'current-password' : 'new-password'}" placeholder="At least 8 characters">
+      ${isWeb ? '' : `<div class="sub" style="margin-top:10px">You are on a local copy of Tick. Email and Google links will open the live site (${esc((cfg.SITE_URL || '').replace(/^https?:\/\//, ''))}) — sign in there, and your Ticks sync across.</div>`}
       <div class="sub" id="amsg" style="min-height:20px;margin-top:10px"></div>
       <button class="btn" id="go" style="margin-top:6px">${signin ? 'Sign in' : 'Create account'}</button>
       <button class="btn lime" id="gg" style="border:1.5px solid var(--ink)">Continue with Google</button>
@@ -1025,7 +1031,7 @@
         try {
           if (signin) { const { error } = await sb.auth.signInWithPassword({ email, password }); if (error) throw error; closeSheet(); flash('Signed in'); }
           else {
-            const { data, error } = await sb.auth.signUp({ email, password, options: { emailRedirectTo: location.origin + location.pathname } });
+            const { data, error } = await sb.auth.signUp({ email, password, options: redirectOpt('emailRedirectTo') });
             if (error) throw error;
             if (data && data.session) { closeSheet(); flash('Account created'); }
             else if (data && data.user && Array.isArray(data.user.identities) && !data.user.identities.length) acctMsg(w, 'That email already has an account — try signing in.');
@@ -1037,13 +1043,13 @@
       $('#go', w).onclick = submit;
       $('#pw', w).onkeydown = e => { if (e.key === 'Enter') submit(); };
       $('#gg', w).onclick = async () => {
-        try { const { error } = await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.origin + location.pathname } }); if (error) throw error; }
+        try { const { error } = await sb.auth.signInWithOAuth({ provider: 'google', options: redirectOpt('redirectTo') }); if (error) throw error; }
         catch (e) { acctMsg(w, /provider.*not enabled|unsupported provider/i.test(String(e && e.message)) ? 'Google sign-in is not switched on in Supabase yet.' : friendly(e)); }
       };
       const fp = $('#fp', w);
       if (fp) fp.onclick = async () => {
         const email = $('#em', w).value.trim(); if (!/^\S+@\S+\.\S+$/.test(email)) { acctMsg(w, 'Type your email above first, then tap “Forgot your password?”.'); return; }
-        try { const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname }); if (error) throw error; acctMsg(w, '✓ If that email has an account, a reset link is on its way.', true); }
+        try { const { error } = await sb.auth.resetPasswordForEmail(email, redirectOpt('redirectTo')); if (error) throw error; acctMsg(w, '✓ If that email has an account, a reset link is on its way.', true); }
         catch (e) { acctMsg(w, friendly(e)); }
       };
       $('#em', w).focus({ preventScroll: true });

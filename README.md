@@ -84,6 +84,7 @@ The Supabase project **time-is-money-app** is already created, the `tick_state` 
 
 ### Notes
 
+- **Use the live site for sign-in:** <https://uixodev.github.io/time-is-money-app/>. A copy opened as a local file works offline, but its data is stored separately from the live site's (browsers keep them apart); sign in on both and the cloud merges them. Email, reset and Google links always return to `SITE_URL` in `config.js`.
 - Forgot password: the sign-in screen sends a reset link; following it opens a "choose a new password" box.
 - Signing out asks whether to keep or clear this device's copy. If a different account signs in on a device that holds someone else's data, the app asks before replacing it — it never uploads one account's data into another.
 - `sound` is a per-device setting and is not synced.
