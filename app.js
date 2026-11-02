@@ -229,7 +229,7 @@
       const ds = S.deeds.filter(d => d.kind === kind); if (!ds.length) return '';
       return `<h2>${title}</h2><div class="card">${ds.map(d => `<div class="row"><i class="dot" style="background:${d.color};width:18px;height:18px"></i>
         <div class="t"><b>${esc(d.name)}</b><span>${rateLbl(d)} · ${dur(byT[d.id] || 0)} today</span></div>
-        <div class="r"><b>${d.kind === 'neutral' ? '' : tk + signed(byK[d.id] || 0)}</b></div><button class="x" data-del-deed="${d.id}" aria-label="Delete deed">✕</button></div>`).join('')}</div>`;
+        <div class="r"><b>${d.kind === 'neutral' ? '' : tk + signed(byK[d.id] || 0)}</b></div><button class="x edit" data-edit="${d.id}" aria-label="Edit ${esc(d.name)}">✎</button></div>`).join('')}</div>`;
     };
     return `
       ${head('Deeds', '<button class="icon-btn" data-act="adddeed" aria-label="Add deed">+</button>')}
@@ -359,20 +359,35 @@
 
   // ---------- sheets ----------
   const RATE_OPTS = [1, 2, 3, 4, 5].map(n => `<option value="${n}">${n} Tick${n > 1 ? 's' : ''} / min</option>`).join('');
-  function addDeedSheet() {
-    openSheet(`<h3>New deed</h3><div class="sub">Hard deeds earn Ticks. Useless deeds spend them.</div>
-      <label class="l">Name</label><input class="field" id="dn" maxlength="24" placeholder="Reading">
+  function deedSheet(id) {
+    const ed = id ? S.deeds.find(d => d.id === id) : null;
+    let color = ed ? ed.color : PALETTE[S.deeds.length % PALETTE.length];
+    openSheet(`<h3>${ed ? 'Edit deed' : 'New deed'}</h3><div class="sub">Hard deeds earn Ticks. Useless deeds spend them.${ed ? ' Changes apply from now on — past time keeps the Ticks it already earned or cost.' : ''}</div>
+      <label class="l">Name</label><input class="field" id="dn" maxlength="24" placeholder="Reading" value="${ed ? esc(ed.name) : ''}">
       <label class="l">Type</label><select class="field sel" id="dk"><option value="hard">Hard — earns Ticks</option><option value="useless">Useless — costs Ticks</option><option value="neutral">Just living — no Ticks</option></select>
       <div id="rr"><label class="l">How hard / how useless?</label><select class="field sel" id="dr">${RATE_OPTS}</select></div>
-      <button class="btn" id="ok">Add deed</button>`, w => {
-      $('#dr', w).value = '2';
-      $('#dk', w).onchange = () => { $('#rr', w).style.display = $('#dk', w).value === 'neutral' ? 'none' : ''; };
+      <label class="l">Colour</label><div class="swatches" id="sw">${PALETTE.map(c => `<button type="button" class="swatch ${c === color ? 'on' : ''}" data-color="${c}" style="background:${c}" aria-label="Colour ${c}"></button>`).join('')}</div>
+      <button class="btn" id="ok">${ed ? 'Save changes' : 'Add deed'}</button>
+      ${ed ? '<button class="link" id="del">Delete this deed</button>' : ''}`, w => {
+      $('#dk', w).value = ed ? ed.kind : 'hard';
+      $('#dr', w).value = String(ed && ed.rate ? ed.rate : 2);
+      const sync = () => { $('#rr', w).style.display = $('#dk', w).value === 'neutral' ? 'none' : ''; };
+      sync(); $('#dk', w).onchange = sync;
+      $('#sw', w).onclick = e => {
+        const sw = e.target.closest('.swatch'); if (!sw) return;
+        color = sw.dataset.color; w.querySelectorAll('.swatch').forEach(x => x.classList.toggle('on', x === sw));
+      };
       $('#ok', w).onclick = () => {
-        const name = $('#dn', w).value.trim(); if (!name) return;
-        const kind = $('#dk', w).value;
-        S.deeds.push({ id: uid(), name, color: PALETTE[S.deeds.length % PALETTE.length], kind, rate: kind === 'neutral' ? 0 : parseInt($('#dr', w).value, 10) });
+        const name = $('#dn', w).value.trim(); if (!name) { $('#dn', w).focus(); return; }
+        const kind = $('#dk', w).value, rate = kind === 'neutral' ? 0 : parseInt($('#dr', w).value, 10);
+        if (ed) {
+          if (S.active && S.active.deedId === ed.id) stopActive();   // bank the running session at the old rate first
+          Object.assign(ed, { name, kind, rate, color });
+        } else S.deeds.push({ id: uid(), name, color, kind, rate });
         save(); closeSheet(); render();
       };
+      const del = $('#del', w);
+      if (del) del.onclick = () => { if (confirm(`Delete “${ed.name}”? Your history keeps its time and Ticks.`)) { if (S.active && S.active.deedId === ed.id) stopActive(); S.deeds = S.deeds.filter(x => x.id !== ed.id); save(); closeSheet(); render(); } };
       $('#dn', w).focus();
     });
   }
@@ -423,12 +438,13 @@
     if (d.tab) { tab = d.tab; render(); return; }
     if (d.chip) { ask(d.chip); return; }
     if (d.start) { const dd = deedOf(d.start); if (!S.active && timeLeft() > 0 && !(dd.kind === 'useless' && balance() < dd.rate)) { S.active = { deedId: d.start, start: Date.now() }; save(); render(); } return; }
+    if (d.edit) { deedSheet(d.edit); return; }
     if (d.delDeed) { if (S.active && S.active.deedId === d.delDeed) stopActive(); S.deeds = S.deeds.filter(x => x.id !== d.delDeed); save(); render(); return; }
     if (d.delGoal) { S.goals = S.goals.filter(g => g.id !== d.delGoal); save(); render(); return; }
     switch (d.act) {
       case 'stop': stopActive(); break;
       case 'about': aboutSheet(false); break;
-      case 'adddeed': addDeedSheet(); break;
+      case 'adddeed': deedSheet(); break;
       case 'logpast': logPastSheet(); break;
       case 'addgoal': addGoalSheet(); break;
     }

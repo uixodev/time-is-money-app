@@ -151,3 +151,7 @@ select.field option{color:#16210F;background:#fff}
 .sheet .field{background-color:var(--card)}
 .hero .bar{background:rgba(22,33,15,.15)}
 .hero .bar>i{background:#16210F}
+.x.edit{font-size:17px;width:36px;height:36px;border-radius:50%;background:var(--bg);color:var(--ink);border:1px solid var(--line)}
+.swatches{display:flex;gap:10px;margin-top:10px}
+.swatch{width:34px;height:34px;border-radius:50%;border:2px solid var(--line)}
+.swatch.on{outline:3px solid var(--ink);outline-offset:2px}

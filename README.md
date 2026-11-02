@@ -23,7 +23,7 @@ the darker the coin, the more it is worth. The currency sign is a struck T with 
 ## Screens
 
 - **Wallet** – Ticks balance (live), coin purse, start a deed, time left today, where today went.
-- **Deeds** – hard / useless / just-living deeds with their rates. Add your own, or log time you already spent.
+- **Deeds** – hard / useless / just-living deeds with their rates. Add, edit (✎ name, type, rate, colour) or delete them, or log time you already spent.
 - **Ask** – "2h scrolling" → cost in Ticks and what you'd have left; "100 ticks" → how long to earn or burn them.
 - **Goals** – guilt-free rewards ("Gaming weekend: 600 Ticks") with how much hard work they need.
 - **History** – average earned vs. spent, 7-day time chart, day-by-day net Ticks.
