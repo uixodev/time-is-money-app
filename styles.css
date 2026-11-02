@@ -138,3 +138,6 @@ label.l{display:block;margin-top:12px;font-size:13px;font-weight:700;color:var(-
 .coinlist b{display:block}.coinlist span{color:var(--muted);font-size:13px}
 .sel{appearance:none;background:var(--bg)}
 .link{color:var(--muted);text-decoration:underline;font-size:13px;margin-top:14px;display:block;text-align:center;width:100%}
+.glbl{margin:14px 0 0;font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.deedbtn em{font-style:normal;font-size:12px;font-weight:700;color:var(--muted);margin-left:2px}
+.deedbtn[disabled]{opacity:.4;cursor:not-allowed}
