@@ -1,42 +1,43 @@
-# Tick — your Health is your income
+# Tons — your Health is your income
 
 Three layers:
 
 | Layer | What it is | Rule |
 |---|---|---|
 | **Time** | 86,400 seconds a day | Equal for everyone. Expires at midnight. |
-| **Health** | Six pillars: **Sleep · Food · Move · Hygiene · Home · Family** | Gauges that drain through the day. Refilling them **earns Ticks**. |
-| **Ticks (Ŧ.)** | Your money | Earned by looking after yourself, spent on investments and useless things. Never expire. Can go negative. |
+| **Health** | Seven pillars: **Sleep · Food · Move · Hygiene · Home · Family · Allah** | Gauges that drain through the day. Refilling them **earns Tons**. |
+| **Tons (Tons)** | Your money | Earned by looking after yourself, spent on investments and useless things. Never expire. Can go negative. |
 
 ## Income: Health
 
-You earn Ticks by refilling what has drained: **Ticks = health points refilled × the pillar's price** (`PILLARS` in `app.js`).
-A pillar that is already full pays nothing, so nothing can be farmed. A day of proper upkeep earns roughly 230 Ticks.
+You earn Tons by refilling what has drained: **Tons = health points refilled × the pillar's price** (`PILLARS` in `app.js`).
+A pillar that is already full pays nothing, so nothing can be farmed. A day of proper upkeep earns roughly 230 Tons.
 
 - **What the % means:** each pillar is a **gauge from 0% to 100%** — how looked-after that need is *right now* (100% = fully topped up, 0% = neglected). Gauges drain slowly all day and care deeds refill them: *"Food gauge +35%"* raises that gauge by 35 points, never past 100%.
+- **Allah (faith)** is the seventh pillar: **Prayer** (one tap, +15% — about five a day keeps it level) and **Quran** (a timer, +1%/min). It drains about 3 points an hour, is labelled just *Allah* (not “gauge”), and counts toward overall Health like the others. Add your own deeds to it (dhikr, dua, charity…) from Deeds → +.
 - Overall Health = 60% average of the pillars + 40% your weakest pillar.
 - **Gate:** below **40%** you can't start an investment (and a running one stops). Look after yourself first.
 
 ## Investments
 
-Things like *Learn to code* or *Deep work* **cost Ticks now** (e.g. 0.5/min) and **pay daily dividends later**.
+Things like *Learn to code* or *Deep work* **cost Tons now** (e.g. 0.5/min) and **pay daily dividends later**.
 
 - **Skill** = hours invested, each hour fading **2% a day** without practice.
-- **Dividend** per day = skill × cost rate × 2 — so 1 hour at 0.5/min (30 Ticks) pays about 1 Tick a day.
+- **Dividend** per day = skill × cost rate × 2 — so 1 hour at 0.5/min (30 Tons) pays about 1 Tons a day.
 - Break-even takes roughly 30–45 days; keep practising and the dividends keep coming.
 - The **Invest** tab is your portfolio: dividend/day, invested vs. paid back, return %, break-even estimate, plus a **What if…?** box ("2h learn to code").
 
 ## Useless deeds
 
-Scrolling, gaming… they just cost Ticks (1–5/min) and return nothing. Investments are deliberately cheaper than useless time.
+Scrolling, gaming… they just cost Tons (1–5/min) and return nothing. Investments are deliberately cheaper than useless time.
 
 ## Debt
 
-Ticks can go below zero. In debt, **useless** time costs **+50%**. Earned Ticks repay the debt first.
+Tons can go below zero. In debt, **useless** time costs **+50%**. Earned Tons repay the debt first.
 
 ## Deed types
 
-| Type | Examples | Ticks |
+| Type | Examples | Tons |
 |---|---|---|
 | **Care** (timer) | Sleep, Workout, Cleaning, Family time | earns, while a pillar has room |
 | **Care** (check-in) | Meal, Wash up | one tap; earns in proportion to what it refilled |
@@ -46,11 +47,11 @@ Ticks can go below zero. In debt, **useless** time costs **+50%**. Earned Ticks 
 
 ## The live timer — and combining deeds
 
-While a deed runs you see the **Big number** timer: huge time digits that roll as they change, a soft glow, a thin line that fills every minute, and your **live session Ticks** underneath (`+ Ŧ. 8.11`) — plus the pillar's gauge for care deeds.
+While a deed runs you see the **Big number** timer: huge time digits that roll as they change, a soft glow, a thin line that fills every minute, and your **live session Tons** underneath (`+ Tons 8.11`) — plus the pillar's gauge for care deeds.
 
-**You can run up to 3 deeds at once** — a care deed, an investment and a useless one in any mix (cleaning while you learn, say). Each earns or costs Ticks at its own rate, and each is banked separately when it stops.
+**You can run up to 3 deeds at once** — a care deed, an investment and a useless one in any mix (cleaning while you learn, say). Each earns or costs Tons at its own rate, and each is banked separately when it stops.
 
-- With one running you get the big timer; with two or three you get one **combined card** (big clock + the **net** Ticks, plus a row per deed with its own clock, live Ticks and a **Stop** button, and **Stop all**).
+- With one running you get the big timer; with two or three you get one **combined card** (big clock + the **net** Tons, plus a row per deed with its own clock, live Tons and a **Stop** button, and **Stop all**).
 - A deed that is already running isn't offered again, and at 3 you're asked to stop one first.
 - Each deed's time counts in full for that deed, but the Wallet's *tracked today* never exceeds the real time so far — doing things together doesn't make the day longer.
 - Stopping several at once queues their summary pop-ups one after another. Low Health stops running investments (not care deeds).
@@ -58,30 +59,30 @@ While a deed runs you see the **Big number** timer: huge time digits that roll a
 
 ## Notes & Journal
 
-- **Stop a care timer** (sleep, workout, cleaning, family time…) → a **Nicely done** pop-up shows time, Ticks earned and how far the pillar rose, then asks *"How did it go?"* with an optional 1–5 *how do you feel* rating.
+- **Stop a care timer** (sleep, workout, cleaning, family time…) → a **Nicely done** pop-up shows time, Tons earned and how far the pillar rose, then asks *"How did it go?"* with an optional 1–5 *how do you feel* rating.
 - **Quick check-ins** (meal, wash up) → the confirmation toast has a **+ note** button.
 - **Write a note any time** from the Journal (History tab): pick a deed or *General*.
-- **Stop an investment** (10 seconds or longer) → a **Session done** pop-up shows time invested, Ticks spent, skill added and how much your daily dividend grew, then asks *"What did you get from this?"* with an optional 1–5 focus rating.
+- **Stop an investment** (10 seconds or longer) → a **Session done** pop-up shows time invested, Tons spent, skill added and how much your daily dividend grew, then asks *"What did you get from this?"* with an optional 1–5 focus rating.
 - **Buy a goal** → an **Enjoy it** pop-up shows what it cost, what you have left and how long it took, then asks *"How was it? Was it worth it?"*.
 - Notes are kept in the **Journal** (History tab). Tap one to edit or delete it. The latest note also shows on its investment card, and reward notes show under *Rewards you've bought*. Add a note any time with **+ note**.
 
 ## Coins & sign
 
-Ticks come in **Tick (1)**, **Ten (10)** and **Hundred (100)** coins. The currency sign is a struck T with a seconds pip (`brand/`).
+The currency is **Tons**. Its sign is a **slanted-strike T**: a T struck by a slanted bar through the stem, with the little seconds pip (`brand/`). Tons come in three coins — **Ton (1)**, **Ten-ton (10)** and **Hundred-ton (100)** — the same round coin with an open timer ring; the darker, the more it is worth.
 
 ## Screens
 
-- **Wallet** – Ticks balance, coin purse, a live countdown to midnight (ticks every second), what are you doing, where today went. (Health still runs underneath; ask "how is my health?" in the Invest tab to see the pillars.)
+- **Wallet** – Tons balance, coin purse, a live countdown to midnight (ticks every second), what are you doing, where today went. (Health still runs underneath; ask "how is my health?" in the Invest tab to see the pillars.)
 - **Deeds** – care / investment / useless / living deeds. Add, edit (✎) or delete; log time you already spent.
 - **Invest** – your portfolio and the What-if calculator.
-- **Goals** – rewards to save Ticks for. Edit (✎), then **Buy it** — with confetti and a chime (switch sounds off in the Ŧ. menu).
-- **History** – switch between 7 and 30 days: net Ticks, care streak, best day, averages, an earned-vs-spent chart, *where your Ticks went* (care, dividends, investing, useless time, rewards), *where your time went*, your Journal and day by day.
+- **Goals** – rewards to save Tons for. Edit (✎), then **Buy it** — with confetti and a chime (switch sounds off in the sign button).
+- **History** – switch between 7 and 30 days: net Tons, care streak, best day, averages, an earned-vs-spent chart, *where your Tons went* (care, dividends, investing, useless time, rewards), *where your time went*, your Journal and day by day.
 
 Colours: light lime `#C9F26B`, forest ink `#16210F`, tonal greens. Dark mode included.
 
 ## Accounts & cloud sync (Supabase)
 
-Tick works fully offline without an account. Sign in (the person icon, top right) to back your data up and use it on any device — email + password (any email, including Gmail) or **Continue with Google**.
+Tons works fully offline without an account. Sign in (the person icon, top right) to back your data up and use it on any device — email + password (any email, including Gmail) or **Continue with Google**.
 
 **How it syncs:** local-first. Every change is saved in the browser immediately, then mirrored to one row per user in the `tick_state` table about 2.5 seconds later, and re-checked every minute and whenever you come back to the tab. A revision number detects two devices writing at once; the states are **merged** (entries, notes and rewards are unioned, the newest edit of a deed or goal wins, deletes are remembered) so nothing is lost. Offline edits sync when you reconnect.
 
@@ -107,9 +108,9 @@ The Supabase project **time-is-money-app** is already created, the `tick_state` 
 
 ## Backup & restore
 
-Open it from the **History** tab (Backup card), the **Ŧ. menu**, or the **account** screen.
+Open it from the **History** tab (Backup card), the **sign button**, or the **account** screen.
 
-- **Export backup** downloads `tick-backup-YYYY-MM-DD.json` — your deeds, history, notes, goals and rewards.
+- **Export backup** downloads `tons-backup-YYYY-MM-DD.json` — your deeds, history, notes, goals and rewards.
 - **Import a backup file** shows what's inside (entries, notes, deeds, goals) and lets you choose:
   - **Merge** — adds everything from the file to what's on this device and keeps both; nothing is lost, nothing is duplicated.
   - **Replace** — swaps this device's data for the file (only offered when signed out, because with an account the cloud would just merge your old data back).
@@ -130,4 +131,4 @@ Data is stored in `localStorage` (`tick.v1`). Older saves migrate automatically 
 
 - Sleep mode (bedtime target, reward for a steady bedtime) and golden hours (bonus windows).
 - End-of-session notes ("what did you get done?") and more reward moments (coin roll-over).
-- Later: accounts and sync, gifting Ticks, shared goals, AI for the What-if box.
+- Later: accounts and sync, gifting Tons, shared goals, AI for the What-if box.

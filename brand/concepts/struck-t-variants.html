@@ -1,0 +1,35 @@
+<!doctype html><meta charset="utf-8"><title>Struck-T variants</title>
+<style>
+body{margin:0;padding:24px;background:#F5F8EC;font-family:-apple-system,"Segoe UI",sans-serif;color:#16210F}
+h1{font-size:20px;margin:0 0 14px}.row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.c{background:#fff;border:1px solid #E4EAD5;border-radius:22px;padding:14px}.c h2{margin:0 0 2px;font-size:15px}.c p{margin:0 0 10px;color:#6B7560;font-size:12px;min-height:30px}
+.tiles{display:flex;gap:8px}.tile{flex:1;aspect-ratio:1;border-radius:20px;display:grid;place-items:center}.lime{background:#C9F26B}.ink{background:#16210F;color:#C9F26B}.tile svg{width:66%}
+.amt{display:flex;align-items:center;gap:5px;margin-top:10px;font-weight:800;font-size:30px;letter-spacing:-1px}.amt svg{width:.85em;height:.85em}
+.sm{display:flex;gap:12px;align-items:center;margin-top:6px;color:#6B7560;font-size:13px}
+</style>
+<h1>Tons sign — the struck T, made a little unique</h1><div class="row" id="r"></div>
+<script>
+const L='fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"';
+const sv=(inner,w=7)=>`<svg viewBox="0 0 64 64" ${L} stroke-width="${w}">${inner}</svg>`;
+const fill=d=>`<path d="${d}" fill="currentColor" stroke="none"/>`;
+const C=[
+ {n:'0 · Before (for reference)',d:'The struck T with a pip we had — close to ₮.',
+  g:sv('<path d="M14 14H50M32 14V52M21 31H43"/>'+fill('M53.4 48 a3.4 3.4 0 1 1 -6.8 0 a3.4 3.4 0 1 1 6.8 0')) },
+ {n:'1 · Slab top',d:'The crossbar becomes a heavy trapezoid slab (a ton on a stick); strike bar below.',
+  g:sv(fill('M9 10 H55 L50 21 H14 Z')+'<path d="M32 21V54M22 36H42"/>',6.5)},
+ {n:'2 · Barbell strike',d:'Strike bar ends in a weight plate on the right — a barbell hidden in the T.',
+  g:sv('<path d="M13 14H51M32 14V54M20 33H40"/>'+fill('M46 33 m-5.5 0 a5.5 5.5 0 1 0 11 0 a5.5 5.5 0 1 0 -11 0'))},
+ {n:'3 · Sagging beam',d:'The top bar sags in the middle as if carrying a ton.',
+  g:sv('<path d="M10 14 Q32 28 54 14"/><path d="M32 22V54M21 38H43"/>'+fill('M53.4 52 a3.4 3.4 0 1 1 -6.8 0 a3.4 3.4 0 1 1 6.8 0'),6.5)},
+ {n:'4 · Slanted strike',d:'The second bar is a slash, like many currency signs, plus the time pip.',
+  g:sv('<path d="M13 14H51M32 14V54M19 38L45 28"/>'+fill('M53 50 a3.4 3.4 0 1 1 -6.8 0 a3.4 3.4 0 1 1 6.8 0'))},
+ {n:'5 · Footed T',d:'Stem lands on a short foot (heavy base), strike bar in the middle.',
+  g:sv('<path d="M12 12H52M32 12V52M20 31H44M22 54H42"/>',6.5)},
+ {n:'6 · Slab + foot',d:'Slab crossbar and a plate-shaped strike: a T built from weights.',
+  g:sv(fill('M9 10 H55 L50 21 H14 Z')+'<path d="M32 21V54"/>'+fill('M20 34 H44 L42 42 H22 Z'),6.5)},
+ {n:'7 · Slab top + pip',d:'Slab crossbar, single strike, and the seconds pip at the foot.',
+  g:sv(fill('M9 10 H55 L50 21 H14 Z')+'<path d="M32 21V52M22 35H42"/>'+fill('M52 52 a3.4 3.4 0 1 1 -6.8 0 a3.4 3.4 0 1 1 6.8 0'),6.5)},
+];
+document.getElementById('r').innerHTML=C.map(c=>`<div class="c"><h2>${c.n}</h2><p>${c.d}</p><div class="tiles"><div class="tile lime" style="color:#16210F">${c.g}</div><div class="tile ink">${c.g}</div></div>
+<div class="amt">${c.g}<span>1,240</span></div><div class="sm">${c.g.replace('<svg','<svg style="width:20px;height:20px"')}<span>20px</span>${c.g.replace('<svg','<svg style="width:14px;height:14px"')}<span>14px</span></div></div>`).join('');
+</script>

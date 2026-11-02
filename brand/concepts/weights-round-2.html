@@ -1,0 +1,35 @@
+<!doctype html><meta charset="utf-8"><title>Tons sign concepts 2</title>
+<style>
+body{margin:0;padding:24px;background:#F5F8EC;font-family:-apple-system,"Segoe UI",sans-serif;color:#16210F}
+h1{font-size:20px;margin:0 0 14px}.row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.c{background:#fff;border:1px solid #E4EAD5;border-radius:22px;padding:14px}.c h2{margin:0 0 2px;font-size:15px}.c p{margin:0 0 10px;color:#6B7560;font-size:12px;min-height:30px}
+.tiles{display:flex;gap:8px}.tile{flex:1;aspect-ratio:1;border-radius:20px;display:grid;place-items:center}.lime{background:#C9F26B}.ink{background:#16210F;color:#C9F26B}.tile svg{width:66%}
+.amt{display:flex;align-items:center;gap:5px;margin-top:10px;font-weight:800;font-size:30px;letter-spacing:-1px}.amt svg{width:.85em;height:.85em}
+.sm{display:flex;gap:12px;align-items:center;margin-top:6px;color:#6B7560;font-size:13px}
+</style>
+<h1>Tons currency sign — round 2 (solid weights)</h1><div class="row" id="r"></div>
+<script>
+const F='fill="currentColor" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"';
+const T_HOLE='M21 33 H43 V39 H35 V52 H29 V39 H21 Z';
+const BODY='M24 22 H40 Q44 22 45 26 L55 54 Q56.5 58 52 58 H12 Q7.5 58 9 54 L19 26 Q20 22 24 22 Z';
+const C=[
+ {n:'A · Ton weight (solid)',d:'Heavy trapezoid, small ring handle, T knocked out. The "kg weight" shape.',
+  g:`<svg viewBox="0 0 64 64" ${F} stroke-width="5"><path d="${BODY} ${T_HOLE}" fill-rule="evenodd" stroke="none"/><circle cx="32" cy="13" r="7.5" fill="none"/></svg>`},
+ {n:'B · Ton weight, big T',d:'Same weight with a bolder, taller T so it reads as a T first.',
+  g:`<svg viewBox="0 0 64 64" ${F} stroke-width="5"><path d="${BODY} M19 31 H45 V38 H36 V54 H28 V38 H19 Z" fill-rule="evenodd" stroke="none"/><circle cx="32" cy="13" r="7.5" fill="none"/></svg>`},
+ {n:'C · Kettlebell (solid)',d:'Round belly, wide handle, T knocked out.',
+  g:`<svg viewBox="0 0 64 64" ${F} stroke-width="5.5"><path d="M32 18 A22 22 0 1 1 31.99 18 Z M21 36 H43 V42 H35 V55 H29 V42 H21 Z" fill-rule="evenodd" stroke="none"/><path d="M17 26 C14 6 50 6 47 26" fill="none"/></svg>`},
+ {n:'D · Ingot (solid)',d:'Gold-bar silhouette with the T knocked out of its front.',
+  g:`<svg viewBox="0 0 64 64" ${F}><path d="M20 12 H44 L52 26 H58 L62 52 H2 L6 26 H12 Z M22 33 H42 V38 H35 V46 H29 V38 H22 Z" fill-rule="evenodd" stroke="none"/></svg>`},
+ {n:'E · Scale-T (bold)',d:'Balance scale: the T is beam + post. Bolder pans.',
+  g:`<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="5.5"><path d="M8 14 H56 M32 8 V54 M20 56 H44"/><path d="M13 14 L5 32 H21 Z M51 14 L43 32 H59 Z" fill="currentColor" stroke-width="3.5"/></svg>`},
+ {n:'F · Weight outline, small ring',d:'Outline version of A, to compare with the solid one.',
+  g:`<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="5.5"><path d="M10 58 L18 24 H46 L54 58 Z"/><circle cx="32" cy="13" r="7"/><path d="M22 35 H42 M32 35 V50"/></svg>`},
+ {n:'G · Barbell-T',d:'A T whose crossbar is a loaded barbell — health meets weight.',
+  g:`<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="5"><path d="M14 18 H50 M32 18 V56"/><path d="M8 8 V28 M14 11 V25 M56 8 V28 M50 11 V25"/></svg>`},
+ {n:'H · Plate-T',d:'A weight plate (ring) with a bold T through its centre.',
+  g:`<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="5.5"><circle cx="32" cy="32" r="25"/><path d="M19 23 H45 M32 23 V46"/></svg>`},
+];
+document.getElementById('r').innerHTML=C.map(c=>`<div class="c"><h2>${c.n}</h2><p>${c.d}</p><div class="tiles"><div class="tile lime" style="color:#16210F">${c.g}</div><div class="tile ink">${c.g}</div></div>
+<div class="amt">${c.g}<span>1,240</span></div><div class="sm">${c.g.replace('<svg','<svg style="width:20px;height:20px"')}<span>20px</span>${c.g.replace('<svg','<svg style="width:14px;height:14px"')}<span>14px</span></div></div>`).join('');
+</script>

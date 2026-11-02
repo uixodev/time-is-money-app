@@ -1,4 +1,4 @@
-// Cloud sync settings for Tick (Supabase project "time-is-money-app").
+// Cloud sync settings for Tons (Supabase project "time-is-money-app").
 // The anon key is meant to be public — your data is protected by Row Level Security (see supabase/schema.sql).
 // NEVER put the "service_role" key here.
 window.TICK_CONFIG = {

@@ -1,4 +1,4 @@
--- Tick cloud sync — run this once in Supabase: Dashboard → SQL Editor → New query → paste → Run.
+-- Tons cloud sync — run this once in Supabase: Dashboard → SQL Editor → New query → paste → Run.
 -- One row per user holds their whole app state. Row Level Security means a signed-in user can only
 -- ever read or write their OWN row, which is what makes it safe to publish the anon key in the page.
 
