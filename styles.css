@@ -244,49 +244,7 @@ textarea.field{min-height:96px;resize:vertical;line-height:1.4}
 .tA-ticks{position:relative;margin-top:18px;font-size:34px;font-weight:800;letter-spacing:-1px;font-variant-numeric:tabular-nums}
 .tA-sub{position:relative;margin-top:2px}
 
-/* B · Coin stack */
-.tB{padding:6px 2px 2px}
-.tB-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
-.tB-clock{font-size:34px;font-weight:800;letter-spacing:-1px;font-variant-numeric:tabular-nums}
-.tB-ticks{font-size:24px;font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap}
-.tB-scene{width:240px;max-width:100%;height:150px;display:block;margin:4px auto 0;overflow:visible}
-.cn.drop .cn-in{animation:cdrop .6s cubic-bezier(.3,1.5,.5,1) both}
-@keyframes cdrop{from{transform:translateY(-110px);opacity:0}55%{opacity:1}to{transform:none;opacity:1}}
-
-/* C · Seconds grid */
-.tC{padding:6px 0 2px}
-.tC-clock{font-size:46px;font-weight:800;letter-spacing:-1.5px;line-height:1.05;font-variant-numeric:tabular-nums}
-.tC-ticks{font-size:22px;font-weight:800;margin-top:2px;font-variant-numeric:tabular-nums}
-.tC-grid{width:220px;height:132px;display:block;margin:14px auto 8px;overflow:visible}
-.gd{fill:var(--line);transition:fill .25s;transform-box:fill-box;transform-origin:center}
-.gd.on{fill:var(--tc)}
-.gd.now{fill:var(--tc);animation:nowp 1s ease-in-out infinite}
-@keyframes nowp{50%{transform:scale(1.55)}}
-.tC-grid.ripple .gd{animation:rip .9s ease-out both;animation-delay:calc(var(--i) * 14ms)}
-@keyframes rip{40%{transform:scale(1.7);fill:#C9F26B}}
-.tC-beads{display:grid;grid-template-columns:repeat(30,1fr);gap:3px;width:220px;margin:0 auto 6px}
-.tC-beads i{aspect-ratio:1;border-radius:50%;background:var(--line);transition:background .3s}
-.tC-beads i.on{background:var(--tc)}
-
 @media (prefers-reduced-motion: reduce){.tt *,.tt{animation:none!important;transition:none!important}}
 .k-useless .tA-glow{background:radial-gradient(closest-side,color-mix(in srgb,var(--tc) 10%,transparent),transparent)}
 .tt .t-sign{margin-right:.04em}
 .tt .tk{margin:0 .08em 0 0}
-
-/* D · Ticks first */
-.tD{padding:20px 0 6px;overflow:hidden;border-radius:20px}
-.tD-glow{position:absolute;left:50%;top:38%;width:340px;height:340px;margin:-170px 0 0 -170px;background:radial-gradient(closest-side,color-mix(in srgb,var(--tc) 34%,transparent),transparent);animation:glow 3.4s ease-in-out infinite alternate;pointer-events:none}
-.k-useless .tD-glow{background:radial-gradient(closest-side,color-mix(in srgb,var(--tc) 11%,transparent),transparent)}
-.tD-num{position:relative;display:flex;justify-content:center;align-items:baseline;font-weight:800;line-height:1;font-variant-numeric:tabular-nums}
-.tD-sign{font-size:44px;margin-right:4px}
-.tD .tk{width:.5em;height:.5em;font-size:78px;margin:0 8px 0 2px;align-self:center}
-.tD-digits{display:inline-flex;font-size:78px;letter-spacing:-3px}
-.tD.long .tD-digits,.tD.long .tk{font-size:60px}
-.tD-digits .dg{display:inline-block;min-width:.58em;text-align:center}
-.tD-digits .pt{display:inline-block;min-width:.28em;text-align:center}
-.tD-rate{position:relative;margin-top:12px;font-size:14px;font-weight:700;color:var(--muted)}
-.tD-time{position:relative;display:flex;justify-content:center;align-items:center;gap:12px;margin-top:14px;font-size:20px;font-weight:800;font-variant-numeric:tabular-nums}
-.tD-time .t-clock{opacity:.85}
-.tD-min{display:block;width:86px;height:6px;border-radius:99px;background:var(--line);overflow:hidden}
-.tD-min i{display:block;height:100%;width:100%;background:var(--tc);border-radius:99px;transform-origin:left;animation:minfill 60s linear infinite}
-.tD-sub{position:relative;margin-top:6px;font-size:13px;font-weight:700;color:var(--muted);min-height:16px}

@@ -5,7 +5,7 @@
 (() => {
   'use strict';
   const KEY = 'tick.v1';
-  const VERSION = 'v20 · Ticks-first timer';   // bump with the ?v= number in index.html so browsers fetch fresh files
+  const VERSION = 'v21 · Big number timer';   // bump with the ?v= number in index.html so browsers fetch fresh files
   const DAY = 86400;
   const $ = (s, el = document) => el.querySelector(s);
   // one tonal green family (+ ink) so every deed colour belongs to the brand
@@ -53,8 +53,6 @@
     goals: [],     // {id, name, target (Ticks)}
     bought: [],    // {id, name, cost, ts} rewards you've bought
     sound: true,   // celebration sounds
-    timerStyle: 'ticks', // which look the running timer uses: ticks | number | coins | grid
-    pickedLook: false,   // true once the user has chosen a look themselves
     tomb: [],      // ids of things deleted on any device, so deletes survive syncing
     lastStopped: 0, // start time of the most recently stopped session (stops a finished session coming back from another device)
     notes: [],     // journal: {id, ts, kind:'invest'|'reward', deedId?, refId?, title, line, text, rating}
@@ -83,7 +81,7 @@
     defaultDeeds().filter(n => n.kind === 'care').forEach(n => { if (!S.deeds.some(d => d.kind === 'care' && d.pillar === n.pillar)) S.deeds.push({ ...n }); });
     S.entries.forEach(e => { if (typeof e.ticks !== 'number') { const d = S.deeds.find(x => x.id === e.deedId); e.ticks = d ? sgn(d) * d.rate * e.secs / 60 : 0; } });
     S.goals = S.goals.filter(g => g.target);
-    if (!S.pickedLook && (!S.timerStyle || S.timerStyle === 'number')) S.timerStyle = 'ticks';   // the earlier default was Big number; anyone who never chose gets the Ticks-first look
+    delete S.timerStyle; delete S.pickedLook;   // the look switcher is gone: everyone has the Big number timer
     if (!Array.isArray(S.tomb)) S.tomb = [];
     if (!Array.isArray(S.notes)) S.notes = [];
   }
@@ -445,13 +443,11 @@
       <div class="sub" style="margin-top:8px"><b>Investments</b> (learning, projects) cost Ticks now and <b>pay daily dividends</b> later. <b>Useless</b> deeds just cost — and cost 50% more if you're in debt.</div>
       ${coinList()}
       <label class="switch"><input type="checkbox" id="snd" ${S.sound ? 'checked' : ''}><span>Celebration sounds</span></label>
-      ${window.TickTimers ? `<label class="l" style="margin-top:14px">Timer look</label><div class="pills" style="margin:8px 0 0">${TickTimers.STYLES.map(x => `<button class="pill ${timerStyle() === x.id ? 'on' : ''}" data-ts="${x.id}">${x.name}</button>`).join('')}</div>` : ''}
       <button class="btn" id="ok">${first ? `Start with ${S.gift} Ticks` : 'Got it'}</button>
       ${first ? '<button class="link" id="signin">Already have an account? Sign in</button>' : '<button class="link" id="reset">Reset all data</button>'}
       ${first ? '' : '<button class="link" id="bk">Backup &amp; restore</button>'}
       <div class="sub" style="text-align:center;margin-top:10px;font-size:12px">Tick ${VERSION}</div>`, w => {
       $('#snd', w).onchange = e => { S.sound = e.target.checked; save(); if (S.sound) chime(); };
-      w.querySelectorAll('[data-ts]').forEach(b => { b.onclick = () => { S.timerStyle = b.dataset.ts; S.pickedLook = true; save(); w.querySelectorAll('[data-ts]').forEach(x => x.classList.toggle('on', x === b)); render(); tick(); }; });
       $('#ok', w).onclick = () => { S.onboarded = true; save(); closeSheet(); render(); };
       const si = $('#signin', w); if (si) si.onclick = () => { S.onboarded = true; save(); closeSheet(); accountSheet(); };
       const bk = $('#bk', w); if (bk) bk.onclick = () => { closeSheet(); backupSheet(); };
@@ -485,8 +481,6 @@
       .map(g => ({ id: g.id, name: TXT(g.name, 40), target: g.target, ...(N(g.created) ? { created: g.created } : {}), ...(N(g.mod) ? { mod: g.mod } : {}) }));
     out.bought = A(d.bought).filter(b => b && ID(b.id) && T(b.name) && N(b.cost) && N(b.ts)).map(b => ({ id: b.id, name: TXT(b.name, 40), cost: b.cost, ts: b.ts }));
     out.tomb = A(d.tomb).filter(ID);
-    if (['ticks', 'number', 'coins', 'grid'].includes(d.timerStyle)) out.timerStyle = d.timerStyle;
-    if (d.pickedLook === true) out.pickedLook = true;
     out.chat = A(d.chat).filter(c => c && (c.from === 'me' || c.from === 'bot') && T(c.text)).map(c => ({ from: c.from, text: TXT(c.text, 600) })).slice(-40);
     if (d.health && typeof d.health === 'object') { out.health = {}; Object.keys(PILLARS).forEach(k => { const h = d.health[k]; if (h && N(h.v) && N(h.t)) out.health[k] = { v: clamp(h.v, 0, 100), t: h.t }; }); }
     if (d.active && ID(d.active.deedId) && N(d.active.start)) out.active = { deedId: d.active.deedId, start: d.active.start, startVal: N(d.active.startVal) ? d.active.startVal : 0, ...(N(d.active.startBal) ? { startBal: d.active.startBal } : {}) };
@@ -569,19 +563,14 @@
     return `<div class="glbl">${title}</div><div class="deeds">${ds.map(deedBtn).join('')}</div>`;
   };
 
-  // ---------- Timer looks (see timers.js) ----------
+  // ---------- The running timer (see timers.js) ----------
   const REDUCED = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
-  const TIMER_STYLES = ['ticks', 'number', 'coins', 'grid'];
-  const timerStyle = () => (TIMER_STYLES.includes(S.timerStyle) ? S.timerStyle : 'ticks');
-  const timerName = () => { const t = window.TickTimers && TickTimers.STYLES.find(x => x.id === timerStyle()); return t ? t.name : 'Ticks first'; };
-  const timerCtx = (d, el, t) => ({ kind: d.kind, elapsed: el, ticks: t, rate: d.kind === 'neutral' ? '' : rateLbl(d), reduced: REDUCED, signHTML: tk, pillar: d.kind === 'care' && d.mode === 'timer' ? { name: PILLARS[d.pillar].name, pct: pv(d.pillar) } : null });
+  const timerCtx = (d, el, t) => ({ kind: d.kind, elapsed: el, ticks: t, reduced: REDUCED, signHTML: tk, pillar: d.kind === 'care' && d.mode === 'timer' ? { name: PILLARS[d.pillar].name, pct: pv(d.pillar) } : null });
   function stageHTML(d) {
     const el = activeElapsed();
     if (!window.TickTimers) return `<div id="stage"><div class="mid live" id="clock">${clock(el)}</div></div>`;   // timers.js failed to load: plain clock
-    return `<div id="stage">${TickTimers.render(timerStyle(), timerCtx(d, el, ticksFor(S.active, el)))}</div>`;
+    return `<div id="stage">${TickTimers.render(timerCtx(d, el, ticksFor(S.active, el)))}</div>`;
   }
-  const lookBtn = () => `<button class="chip" style="margin:0;white-space:nowrap" data-act="cyclestyle" aria-label="Change timer look">Look: ${esc(timerName())} ⟳</button>`;
-  function cycleStyle() { S.timerStyle = TIMER_STYLES[(TIMER_STYLES.indexOf(timerStyle()) + 1) % TIMER_STYLES.length]; S.pickedLook = true; save(); render(); tick(); }
 
   function viewWallet() {
     const bal = balance(), { earned, spent } = dayEarnSpend(0), left = timeLeft(), debt = bal < -0.004, hs = healthScore();
@@ -600,7 +589,7 @@
       </div>
       <div class="card">
         ${S.active ? (() => { const d = deedOf(S.active.deedId); return `
-          <div class="sub" style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span><span class="pulse"></span>${{ invest: 'Investing in', care: 'Looking after', useless: 'Spending on', neutral: 'Doing' }[d.kind]} <b>${esc(d.name)}</b> · ${rateLbl(d)}</span>${lookBtn()}</div>
+          <div class="sub"><span class="pulse"></span>${{ invest: 'Investing in', care: 'Looking after', useless: 'Spending on', neutral: 'Doing' }[d.kind]} <b>${esc(d.name)}</b> · ${rateLbl(d)}</div>
           ${stageHTML(d)}
           <button class="btn stop" data-act="stop">Stop</button>`; })() : `
           <div class="mid">What are you doing?</div>
@@ -688,7 +677,7 @@
         <div class="card"><div class="mid">${tk}${num(spent)}</div><div class="sub">Invested so far</div></div>
         <div class="card"><div class="mid">${tk}${num(returned)}</div><div class="sub">Paid back</div></div>
       </div>
-      ${S.active && deedOf(S.active.deedId).kind === 'invest' ? `<div class="card"><div class="sub" style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span><span class="pulse"></span>Investing in <b>${esc(deedOf(S.active.deedId).name)}</b></span>${lookBtn()}</div>${stageHTML(deedOf(S.active.deedId))}<button class="btn stop" data-act="stop">Stop</button></div>` : ''}
+      ${S.active && deedOf(S.active.deedId).kind === 'invest' ? `<div class="card"><div class="sub"><span class="pulse"></span>Investing in <b>${esc(deedOf(S.active.deedId).name)}</b></div>${stageHTML(deedOf(S.active.deedId))}<button class="btn stop" data-act="stop">Stop</button></div>` : ''}
       ${st.length ? st.map(x => `
         <div class="card">
           <div style="display:flex;justify-content:space-between;align-items:center"><div class="mid">${esc(x.d.name)}</div><button class="x edit" data-edit="${x.d.id}" aria-label="Edit ${esc(x.d.name)}">✎</button></div>
@@ -831,7 +820,7 @@
     if (S.active) {
       const d = deedOf(S.active.deedId), el = activeElapsed(), t = ticksFor(S.active, el);
       const stg = $('#stage');
-      if (stg) { if (window.TickTimers) TickTimers.update(timerStyle(), timerCtx(d, el, t), stg.firstElementChild); else { const c = $('#clock'); if (c) c.textContent = clock(el); } }
+      if (stg) { if (window.TickTimers) TickTimers.update(timerCtx(d, el, t), stg.firstElementChild); else { const c = $('#clock'); if (c) c.textContent = clock(el); } }
       const wh = $('#where'); if (wh) wh.innerHTML = whereHTML();
     }
   }
@@ -989,7 +978,6 @@
       case 'about': aboutSheet(false); break;
       case 'account': accountSheet(); break;
       case 'backup': backupSheet(); break;
-      case 'cyclestyle': cycleStyle(); break;
       case 'writenote': writeNoteSheet(); break;
       case 'adddeed': deedSheet(); break;
       case 'logpast': logPastSheet(); break;
