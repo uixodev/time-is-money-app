@@ -63,6 +63,27 @@ Ticks come in **Tick (1)**, **Ten (10)** and **Hundred (100)** coins. The curren
 
 Colours: light lime `#C9F26B`, forest ink `#16210F`, tonal greens. Dark mode included.
 
+## Accounts & cloud sync (Supabase)
+
+Tick works fully offline without an account. Sign in (the person icon, top right) to back your data up and use it on any device — email + password (any email, including Gmail) or **Continue with Google**.
+
+**How it syncs:** local-first. Every change is saved in the browser immediately, then mirrored to one row per user in the `tick_state` table about 2.5 seconds later, and re-checked every minute and whenever you come back to the tab. A revision number detects two devices writing at once; the states are **merged** (entries, notes and rewards are unioned, the newest edit of a deed or goal wins, deletes are remembered) so nothing is lost. Offline edits sync when you reconnect.
+
+### One-time setup (about 5 minutes)
+
+1. **Create a project** at <https://supabase.com> (free tier is fine).
+2. **Create the table:** Dashboard → *SQL Editor* → *New query* → paste the contents of [`supabase/schema.sql`](supabase/schema.sql) → *Run*. It turns on Row Level Security so each user can only ever see their own row.
+3. **Add your keys:** Dashboard → *Project Settings → API*. Copy the **Project URL** and the **anon / publishable** key into [`config.js`](config.js), commit and push. The anon key is designed to be public. **Never** put the `service_role` key anywhere in this repo.
+4. **Tell Supabase where the app lives:** *Authentication → URL Configuration* → set **Site URL** to `https://uixodev.github.io/time-is-money-app/` and add the same address (plus `http://localhost:8000/` for local testing) under **Redirect URLs**. Without this, confirmation and reset links won't come back to the app.
+5. **Email + password** is on by default. Under *Authentication → Sign In / Providers → Email* you can choose whether new users must **confirm their email** first (recommended for a public app).
+6. **Optional — Google sign-in:** create an *OAuth client ID* (Web application) in Google Cloud Console, add `https://<your-project-ref>.supabase.co/auth/v1/callback` as an authorised redirect URI, then paste the client ID and secret into *Authentication → Sign In / Providers → Google* and switch it on.
+
+### Notes
+
+- Forgot password: the sign-in screen sends a reset link; following it opens a "choose a new password" box.
+- Signing out asks whether to keep or clear this device's copy. If a different account signs in on a device that holds someone else's data, the app asks before replacing it — it never uploads one account's data into another.
+- `sound` is a per-device setting and is not synced.
+
 ## Backup
 
 Your data lives in this browser. In the **Ŧ. menu** use **Export a backup** to download it as a JSON file and **Import a backup** to restore it (on another device, or after clearing site data).

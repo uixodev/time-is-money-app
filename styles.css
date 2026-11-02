@@ -212,3 +212,10 @@ textarea.field{min-height:96px;resize:vertical;line-height:1.4}
 .cb i.in{background:#6FBF3B}.cb i.out{background:var(--ink)}
 .dot{box-shadow:inset 0 0 0 1.5px rgba(150,170,130,.55)}
 .segbar i{box-shadow:inset 0 0 0 1px rgba(150,170,130,.3)}
+
+/* ---- account button ---- */
+.icon-btn.acct{position:relative}
+.icon-btn.acct.on::after{content:'';position:absolute;right:5px;top:5px;width:10px;height:10px;border-radius:50%;background:#6FBF3B;border:2px solid var(--bg)}
+.icon-btn.acct.syncing::after{animation:p .8s infinite}
+.btn.ghost{background:transparent;border:1.5px solid var(--ink);color:var(--ink)}
+.btn[disabled]{cursor:not-allowed}

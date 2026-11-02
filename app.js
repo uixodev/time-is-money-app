@@ -5,7 +5,7 @@
 (() => {
   'use strict';
   const KEY = 'tick.v1';
-  const VERSION = 'v14 · Health income + investments + journal';   // bump with the ?v= number in index.html so browsers fetch fresh files
+  const VERSION = 'v15 · accounts & cloud sync';   // bump with the ?v= number in index.html so browsers fetch fresh files
   const DAY = 86400;
   const $ = (s, el = document) => el.querySelector(s);
   // one tonal green family (+ ink) so every deed colour belongs to the brand
@@ -53,6 +53,8 @@
     goals: [],     // {id, name, target (Ticks)}
     bought: [],    // {id, name, cost, ts} rewards you've bought
     sound: true,   // celebration sounds
+    tomb: [],      // ids of things deleted on any device, so deletes survive syncing
+    lastStopped: 0, // start time of the most recently stopped session (stops a finished session coming back from another device)
     notes: [],     // journal: {id, ts, kind:'invest'|'reward', deedId?, refId?, title, line, text, rating}
     divAt: Date.now(),  // last time dividends were settled
     chat: [],
@@ -79,9 +81,21 @@
     defaultDeeds().filter(n => n.kind === 'care').forEach(n => { if (!S.deeds.some(d => d.kind === 'care' && d.pillar === n.pillar)) S.deeds.push({ ...n }); });
     S.entries.forEach(e => { if (typeof e.ticks !== 'number') { const d = S.deeds.find(x => x.id === e.deedId); e.ticks = d ? sgn(d) * d.rate * e.secs / 60 : 0; } });
     S.goals = S.goals.filter(g => g.target);
+    if (!Array.isArray(S.tomb)) S.tomb = [];
+    if (!Array.isArray(S.notes)) S.notes = [];
   }
   migrate();
-  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch {} };
+  // cloud sync handles (declared early because save() uses them)
+  const SYNC_KEY = 'tick.sync';
+  let sb = null, user = null, syncing = false, syncAgain = false, syncTimer = null, acctMode = 'signin';
+  let meta = (() => { try { return JSON.parse(localStorage.getItem(SYNC_KEY) || '{}'); } catch { return {}; } })();   // {owner, rev, dirty}
+  let sync = { status: 'off', msg: '', at: 0 };
+  const persistMeta = () => { try { localStorage.setItem(SYNC_KEY, JSON.stringify(meta)); } catch {} };
+  const gone = id => { if (!S.tomb.includes(id)) S.tomb.push(id); };
+  function save(localOnly) {
+    try { localStorage.setItem(KEY, JSON.stringify(S)); } catch {}
+    if (!localOnly) { meta.dirty = true; persistMeta(); scheduleSync(); }
+  }
 
   // ---------- currency icons ----------
   const INK = '#16210F';
@@ -108,6 +122,7 @@
     invest: '<path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/>',
     goals: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1" fill="currentColor"/>',
     history: '<path d="M5 20V11M12 20V4M19 20v-6"/>',
+    account: '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/>',
   };
   const icon = k => `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[k]}</svg>`;
 
@@ -221,14 +236,14 @@
     if (e) e.ticks += amt; else S.entries.push({ id: uid(), deedId, ts, secs: 0, ticks: amt, div: true });
   }
   function settleDividends() {
-    const now = Date.now(); let from = Math.max(S.divAt || now, now - 60 * 86400000);
+    const now = Date.now(); let from = Math.max(S.divAt || now, now - 60 * 86400000), added = false;
     const deeds = S.deeds.filter(d => d.kind === 'invest');
     while (from < now) {
       const to = Math.min(now, from + 6 * 3600000), mid = (from + to) / 2, days = (to - from) / 86400000;
-      deeds.forEach(d => { const amt = skillHours(d.id, mid) * d.rate * DIV_PER_RATE * days; if (amt > 1e-6) addDividend(d.id, mid, amt); });
+      deeds.forEach(d => { const amt = skillHours(d.id, mid) * d.rate * DIV_PER_RATE * days; if (amt > 1e-6) { addDividend(d.id, mid, amt); added = true; } });
       from = to;
     }
-    S.divAt = now; save();
+    S.divAt = now; save(!added);
   }
   function investStats(d) {
     let hours = 0, spent = 0, returned = 0;
@@ -362,8 +377,8 @@
     const n = S.notes.find(x => x.id === id); if (!n) return;
     noteSheet({
       heading: 'Edit note', sub: `<b>${esc(n.title)}</b> · ${fmtDate(n.ts)}${n.line ? `<br>${esc(n.line)}` : ''}`, noteLabel: 'Your note', text: n.text, rating: n.rating, saveLabel: 'Save changes',
-      onSave: (text, rating) => { Object.assign(n, { text, rating }); save(); render(); },
-      onDelete: () => { S.notes = S.notes.filter(x => x.id !== id); save(); render(); },
+      onSave: (text, rating) => { Object.assign(n, { text, rating, edited: Date.now() }); save(); render(); },
+      onDelete: () => { S.notes = S.notes.filter(x => x.id !== id); gone(id); save(); render(); },
     });
   }
   const noteHTML = n => `<button class="jn" data-edit-note="${n.id}">
@@ -378,7 +393,7 @@
     const rid = `reward:${uid()}`, ts = Date.now();
     const rec = { id: rid, name: g.name, cost: g.target, ts }; S.bought.unshift(rec);
     S.entries.push({ id: uid(), deedId: rid, ts, secs: 0, ticks: -g.target });
-    S.goals = S.goals.filter(x => x.id !== id);
+    S.goals = S.goals.filter(x => x.id !== id); gone(id);
     save(); render(); confetti(el); chime();
     rewardSummary(rec, g, balance());
   }
@@ -408,11 +423,12 @@
       ${coinList()}
       <label class="switch"><input type="checkbox" id="snd" ${S.sound ? 'checked' : ''}><span>Celebration sounds</span></label>
       <button class="btn" id="ok">${first ? `Start with ${S.gift} Ticks` : 'Got it'}</button>
-      ${first ? '' : '<button class="link" id="reset">Reset all data</button>'}
+      ${first ? '<button class="link" id="signin">Already have an account? Sign in</button>' : '<button class="link" id="reset">Reset all data</button>'}
       ${first ? '' : '<button class="link" id="export">Export a backup</button><label class="link" style="cursor:pointer">Import a backup<input type="file" id="import" accept="application/json,.json" hidden></label>'}
       <div class="sub" style="text-align:center;margin-top:10px;font-size:12px">Tick ${VERSION}</div>`, w => {
       $('#snd', w).onchange = e => { S.sound = e.target.checked; save(); if (S.sound) chime(); };
       $('#ok', w).onclick = () => { S.onboarded = true; save(); closeSheet(); render(); };
+      const si = $('#signin', w); if (si) si.onclick = () => { S.onboarded = true; save(); closeSheet(); accountSheet(); };
       const ex = $('#export', w);
       if (ex) ex.onclick = () => {
         const blob = new Blob([JSON.stringify(S, null, 2)], { type: 'application/json' }), a = document.createElement('a');
@@ -438,7 +454,7 @@
   }
 
   // ---------- views ----------
-  const head = (title, extra = '') => `<div class="head"><h1>${title}</h1><div style="display:flex;gap:8px">${extra}<button class="icon-btn" data-act="about" aria-label="How Tick works">${symbol(26)}</button></div></div>`;
+  const head = (title, extra = '') => `<div class="head"><h1>${title}</h1><div style="display:flex;gap:8px">${extra}<button class="icon-btn acct ${user ? 'on' : ''} ${sync.status === 'syncing' ? 'syncing' : ''}" data-act="account" aria-label="Account">${icon('account')}</button><button class="icon-btn" data-act="about" aria-label="How Tick works">${symbol(26)}</button></div></div>`;
   const purseHTML = () => {
     let b = Math.max(0, Math.floor(balance()));
     return ['hundred', 'ten', 'tick'].map(k => {
@@ -720,7 +736,7 @@
     const a = S.active; if (!a) return;
     const d = deedOf(a.deedId), end = Math.min(Date.now(), a.start + DAY * 1000), secs = (end - a.start) / 1000;
     const isInv = d.kind === 'invest', cost = isInv ? d.rate * secs / 60 : 0, divBefore = isInv ? dividendPerDay(d) : 0;
-    S.active = null;
+    S.active = null; S.lastStopped = Math.max(S.lastStopped || 0, a.start);
     addSpan(a, end);
     if (d.kind === 'care' && d.mode === 'timer' && d.pts > 0) refill(d.pillar, d.pts * (end - a.start) / 60000);
     save(); render();
@@ -775,12 +791,12 @@
         } else fields = { ...fields, rate: 0, pillar: undefined, mode: undefined, pts: undefined };
         if (ed) {
           if (S.active && S.active.deedId === ed.id) stopActive({ silent: true });   // bank the running session at the old settings first
-          Object.assign(ed, fields);
-        } else S.deeds.push({ id: uid(), ...fields });
+          Object.assign(ed, fields, { mod: Date.now() });
+        } else S.deeds.push({ id: uid(), ...fields, mod: Date.now() });
         save(); closeSheet(); render();
       };
       const del = $('#del', w);
-      if (del) del.onclick = () => { if (confirm(`Delete “${ed.name}”? Your history keeps its time and Ticks.`)) { if (S.active && S.active.deedId === ed.id) stopActive({ silent: true }); S.deeds = S.deeds.filter(x => x.id !== ed.id); save(); closeSheet(); render(); } };
+      if (del) del.onclick = () => { if (confirm(`Delete “${ed.name}”? Your history keeps its time and Ticks.`)) { if (S.active && S.active.deedId === ed.id) stopActive({ silent: true }); S.deeds = S.deeds.filter(x => x.id !== ed.id); gone(ed.id); save(); closeSheet(); render(); } };
       $('#dn', w).focus();
     });
   }
@@ -825,11 +841,11 @@
       $('#ok', w).onclick = () => {
         const name = $('#gn', w).value.trim(), t = parseFloat($('#gt', w).value);
         if (!name) { $('#gn', w).focus(); return; } if (!(t > 0)) { $('#gt', w).focus(); return; }
-        if (ed) Object.assign(ed, { name, target: t }); else S.goals.push({ id: uid(), name, target: t, created: Date.now() });
+        if (ed) Object.assign(ed, { name, target: t, mod: Date.now() }); else S.goals.push({ id: uid(), name, target: t, created: Date.now(), mod: Date.now() });
         save(); closeSheet(); render();
       };
       const del = $('#del', w);
-      if (del) del.onclick = () => { if (confirm(`Delete the goal “${ed.name}”?`)) { S.goals = S.goals.filter(g => g.id !== ed.id); save(); closeSheet(); render(); } };
+      if (del) del.onclick = () => { if (confirm(`Delete the goal “${ed.name}”?`)) { S.goals = S.goals.filter(g => g.id !== ed.id); gone(ed.id); save(); closeSheet(); render(); } };
       $('#gn', w).focus();
     });
   }
@@ -860,11 +876,11 @@
     if (d.addRewardNote) { const b = S.bought.find(x => x.id === d.addRewardNote); if (b) freeNoteSheet('reward', { refId: b.id }, b.name); return; }
     if (d.editGoal) { goalSheet(d.editGoal); return; }
     if (d.edit) { deedSheet(d.edit); return; }
-    if (d.delGoal) { S.goals = S.goals.filter(g => g.id !== d.delGoal); save(); render(); return; }
     switch (d.act) {
       case 'stop': stopActive(); break;
       case 'histmore': histMore = !histMore; render(); break;
       case 'about': aboutSheet(false); break;
+      case 'account': accountSheet(); break;
       case 'adddeed': deedSheet(); break;
       case 'logpast': logPastSheet(); break;
       case 'addgoal': goalSheet(); break;
@@ -873,10 +889,215 @@
   });
   document.addEventListener('submit', e => { if (e.target.id === 'askform') { e.preventDefault(); ask($('#q').value); } });
 
+  // ---------- Cloud sync & accounts (Supabase) ----------
+  // Local-first: the app always works offline from localStorage. When signed in, the whole state is mirrored to one
+  // row per user (table tick_state). A revision number detects two devices writing at once; conflicts are merged, not overwritten.
+  const cfg = window.TICK_CONFIG || {};
+  if (cfg.SUPABASE_URL && cfg.SUPABASE_ANON_KEY && window.supabase && window.supabase.createClient) {
+    try { sb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } }); } catch { sb = null; }
+  }
+  const libMissing = !!(cfg.SUPABASE_URL && cfg.SUPABASE_ANON_KEY) && !sb;
+  const payload = () => { const d = JSON.parse(JSON.stringify(S)); delete d.sound; return d; };   // sound is a per-device setting
+  const isPristine = st => !st.entries.length && !st.notes.length && !st.goals.length && !(st.bought || []).length;
+  const friendly = e => {
+    const m = String((e && (e.message || e.error_description)) || e || '');
+    if (/invalid login/i.test(m)) return 'Wrong email or password.';
+    if (/not confirmed/i.test(m)) return 'Please confirm your email first — check your inbox.';
+    if (/already registered|already been registered/i.test(m)) return 'That email already has an account — try signing in.';
+    if (/password.*(short|least|weak)/i.test(m)) return 'Choose a longer password (at least 8 characters).';
+    if (/rate limit|too many/i.test(m)) return 'Too many attempts — wait a minute and try again.';
+    if (/failed to fetch|network|load failed/i.test(m)) return 'No connection — your data is safe here and will sync when you are back online.';
+    if (e && (e.code === 'PGRST205' || e.code === '42P01' || /tick_state/.test(m) && /not find|does not exist/i.test(m))) return 'The cloud table is missing — run supabase/schema.sql in Supabase.';
+    return m || 'Something went wrong.';
+  };
+  const timeStr = ts => new Date(ts).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  const syncText = () => !user ? 'Not signed in' : sync.status === 'syncing' ? 'Syncing…' : sync.status === 'error' ? `⚠ ${sync.msg}` : sync.at ? `Synced at ${timeStr(sync.at)}` : 'Waiting to sync';
+  function setSync(status, msg) {
+    sync = { status, msg: msg || '', at: status === 'idle' ? Date.now() : sync.at };
+    document.querySelectorAll('.acct').forEach(b => { b.classList.toggle('on', !!user); b.classList.toggle('syncing', status === 'syncing'); });
+    const e = $('#ssub'); if (e) e.textContent = syncText();
+  }
+
+  // Merge two states without losing anything: entries / notes / bought are unioned by id, deeds and goals take the newer edit,
+  // deletes are remembered as tombstones, dividends are keyed by deed+day (so two devices can't double-pay them).
+  function mergeStates(l, c) {
+    const dead = new Set([...(l.tomb || []), ...(c.tomb || [])]);
+    const byId = (a, b, pick) => { const m = new Map(); [...(a || []), ...(b || [])].forEach(x => { if (dead.has(x.id)) return; const o = m.get(x.id); m.set(x.id, o ? pick(o, x) : x); }); return [...m.values()]; };
+    const newer = k => (a, b) => ((b[k] || 0) > (a[k] || 0) ? b : a);
+    const out = { ...c, ...l };
+    out.created = Math.min(l.created || Infinity, c.created || Infinity);
+    out.onboarded = !!(l.onboarded || c.onboarded);
+    out.gift = c.gift !== undefined ? c.gift : l.gift;
+    out.tomb = [...dead];
+    out.deeds = byId(l.deeds, c.deeds, newer('mod'));
+    out.goals = byId(l.goals, c.goals, newer('mod'));
+    out.notes = byId(l.notes, c.notes, newer('edited')).sort((a, b) => b.ts - a.ts);
+    out.bought = byId(l.bought, c.bought, a => a).sort((a, b) => b.ts - a.ts);
+    const ent = new Map();
+    [...(l.entries || []), ...(c.entries || [])].forEach(e => {
+      if (dead.has(e.id)) return;
+      const k = e.div ? `div:${e.deedId}:${new Date(e.ts).toDateString()}` : e.id, o = ent.get(k);
+      ent.set(k, !o ? e : (Math.abs(e.ticks) > Math.abs(o.ticks) ? e : o));
+    });
+    out.entries = [...ent.values()].sort((a, b) => a.ts - b.ts);
+    out.health = Object.fromEntries(Object.keys(PILLARS).map(k => { const a = (l.health || {})[k], b = (c.health || {})[k]; return [k, !a ? b : !b ? a : (b.t > a.t ? b : a)]; }));
+    out.lastStopped = Math.max(l.lastStopped || 0, c.lastStopped || 0);
+    out.active = [l.active, c.active].filter(a => a && a.start > out.lastStopped).sort((a, b) => b.start - a.start)[0] || null;
+    out.divAt = Math.max(l.divAt || 0, c.divAt || 0) || Date.now();
+    out.sound = l.sound; out.chat = l.chat || c.chat || [];
+    return out;
+  }
+  function adopt(next) { const snd = S.sound; S = Object.assign(defaults(), next); S.sound = snd; migrate(); }
+
+  async function syncNow() {
+    if (!sb || !user) return;
+    if (syncing) { syncAgain = true; return; }
+    syncing = true; setSync('syncing');
+    try {
+      for (let i = 0; i < 4; i++) {
+        const { data: row, error } = await sb.from('tick_state').select('data,rev').eq('user_id', user.id).maybeSingle();
+        if (error) throw error;
+        const foreign = meta.owner && meta.owner !== user.id;
+        if (!row) {
+          if (foreign) { adopt(defaults()); }                               // another account's data must never be uploaded into this one
+          const { error: e2 } = await sb.from('tick_state').insert({ user_id: user.id, data: payload(), rev: 1 });
+          if (e2) { if (e2.code === '23505') continue; throw e2; }          // someone inserted first → pull and merge
+          meta = { owner: user.id, rev: 1, dirty: false }; save(true); break;
+        }
+        if (foreign) {
+          if (!confirm("This device holds another account's data. Replace it with this account's data?")) { await sb.auth.signOut(); setSync('off'); return; }
+          adopt(row.data); meta = { owner: user.id, rev: row.rev, dirty: false }; save(true); render(); break;
+        }
+        if (row.rev !== meta.rev || meta.owner !== user.id) {               // the cloud has something this device hasn't seen
+          const pristine = isPristine(S);
+          if (pristine) adopt(row.data); else { const merged = mergeStates(S, row.data); const snd = S.sound; S = merged; S.sound = snd; migrate(); }
+          meta = { owner: user.id, rev: row.rev, dirty: !pristine }; save(true); render();
+        }
+        if (!meta.dirty) break;
+        const { data: upd, error: e3 } = await sb.from('tick_state').update({ data: payload(), rev: meta.rev + 1, updated_at: new Date().toISOString() }).eq('user_id', user.id).eq('rev', meta.rev).select('rev');
+        if (e3) throw e3;
+        if (upd && upd.length) { meta.rev = upd[0].rev; meta.dirty = false; break; }   // saved
+        // otherwise another device wrote in between → loop: pull, merge, try again
+      }
+      persistMeta(); setSync('idle');
+    } catch (e) { setSync('error', friendly(e)); }
+    finally { syncing = false; if (syncAgain) { syncAgain = false; scheduleSync(300); } }
+  }
+  function scheduleSync(ms) {
+    if (!sb || !user) return;
+    clearTimeout(syncTimer); syncTimer = setTimeout(syncNow, ms === undefined ? 2500 : ms);
+  }
+
+  // ----- account UI -----
+  const acctMsg = (w, t, ok) => { const e = $('#amsg', w); if (e) { e.textContent = t; e.style.color = ok ? '' : 'var(--ink)'; e.style.fontWeight = ok ? '' : '700'; } };
+  function accountSheet() {
+    if (!sb) {
+      openSheet(`<h3>Cloud sync</h3><div class="sub">${libMissing ? "The sign-in library couldn't load — check your connection and refresh." : 'Sign-in and sync need a Supabase project. Add its URL and anon key to <b>config.js</b> — the README has the 5-minute setup.'}</div><button class="btn" id="ok">Got it</button>`, w => { $('#ok', w).onclick = closeSheet; });
+      return;
+    }
+    if (user) {
+      openSheet(`<h3>Your account</h3><div class="sub">Signed in as <b>${esc(user.email || 'you')}</b>. Your Ticks sync to every device you sign in on.</div>
+        <div class="card" style="margin:14px 0 0"><b>Cloud sync</b><div class="sub" id="ssub">${esc(syncText())}</div></div>
+        <button class="btn" id="sn">Sync now</button>
+        <button class="btn ghost" id="so">Sign out</button>`, w => {
+        $('#sn', w).onclick = () => { meta.dirty = true; syncNow(); };
+        $('#so', w).onclick = () => signOutSheet();
+      });
+      return;
+    }
+    const signin = acctMode === 'signin';
+    openSheet(`<h3>${signin ? 'Welcome back' : 'Sync your Ticks'}</h3><div class="sub">Sign in to back up your data and use Tick on any device. The app works without an account too.</div>
+      <div class="pills" style="margin:14px 0 0"><button class="pill ${signin ? 'on' : ''}" data-m="signin">Sign in</button><button class="pill ${!signin ? 'on' : ''}" data-m="signup">Create account</button></div>
+      <label class="l">Email</label><input class="field" id="em" type="email" autocomplete="email" inputmode="email" placeholder="you@gmail.com">
+      <label class="l">Password</label><input class="field" id="pw" type="password" autocomplete="${signin ? 'current-password' : 'new-password'}" placeholder="At least 8 characters">
+      <div class="sub" id="amsg" style="min-height:20px;margin-top:10px"></div>
+      <button class="btn" id="go" style="margin-top:6px">${signin ? 'Sign in' : 'Create account'}</button>
+      <button class="btn lime" id="gg" style="border:1.5px solid var(--ink)">Continue with Google</button>
+      ${signin ? '<button class="link" id="fp">Forgot your password?</button>' : ''}`, w => {
+      w.querySelectorAll('[data-m]').forEach(b => { b.onclick = () => { acctMode = b.dataset.m; accountSheet(); }; });
+      const creds = () => ({ email: $('#em', w).value.trim(), password: $('#pw', w).value });
+      const busy = on => { const g = $('#go', w); if (g) { g.disabled = on; g.style.opacity = on ? .6 : 1; } };   // the sheet may already be closed after a successful sign-in
+      const submit = async () => {
+        const { email, password } = creds();
+        if (!/^\S+@\S+\.\S+$/.test(email)) { acctMsg(w, 'Enter a valid email address.'); return; }
+        if (password.length < 8) { acctMsg(w, 'Use a password of at least 8 characters.'); return; }
+        busy(true); acctMsg(w, signin ? 'Signing in…' : 'Creating your account…', true);
+        try {
+          if (signin) { const { error } = await sb.auth.signInWithPassword({ email, password }); if (error) throw error; closeSheet(); flash('Signed in'); }
+          else {
+            const { data, error } = await sb.auth.signUp({ email, password, options: { emailRedirectTo: location.origin + location.pathname } });
+            if (error) throw error;
+            if (data && data.session) { closeSheet(); flash('Account created'); }
+            else if (data && data.user && Array.isArray(data.user.identities) && !data.user.identities.length) acctMsg(w, 'That email already has an account — try signing in.');
+            else acctMsg(w, '✓ Check your inbox and click the confirmation link, then sign in.', true);
+          }
+        } catch (e) { acctMsg(w, friendly(e)); }
+        busy(false);
+      };
+      $('#go', w).onclick = submit;
+      $('#pw', w).onkeydown = e => { if (e.key === 'Enter') submit(); };
+      $('#gg', w).onclick = async () => {
+        try { const { error } = await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.origin + location.pathname } }); if (error) throw error; }
+        catch (e) { acctMsg(w, /provider.*not enabled|unsupported provider/i.test(String(e && e.message)) ? 'Google sign-in is not switched on in Supabase yet.' : friendly(e)); }
+      };
+      const fp = $('#fp', w);
+      if (fp) fp.onclick = async () => {
+        const email = $('#em', w).value.trim(); if (!/^\S+@\S+\.\S+$/.test(email)) { acctMsg(w, 'Type your email above first, then tap “Forgot your password?”.'); return; }
+        try { const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname }); if (error) throw error; acctMsg(w, '✓ If that email has an account, a reset link is on its way.', true); }
+        catch (e) { acctMsg(w, friendly(e)); }
+      };
+      $('#em', w).focus({ preventScroll: true });
+    });
+  }
+  function signOutSheet() {
+    openSheet(`<h3>Sign out</h3><div class="sub">Your data stays safe in your account. What should happen to the copy on this device?</div>
+      <button class="btn" id="keep">Sign out — keep data on this device</button>
+      <button class="btn ghost" id="wipe">Sign out and clear this device</button>
+      <button class="link" id="back">Cancel</button>`, w => {
+      const out = async clear => {
+        if (meta.dirty && user) await syncNow();                 // push anything unsynced before leaving
+        await sb.auth.signOut(); user = null;
+        if (clear) { S = defaults(); meta = {}; persistMeta(); save(true); }
+        setSync('off'); closeSheet(); render(); flash('Signed out');
+      };
+      $('#keep', w).onclick = () => out(false);
+      $('#wipe', w).onclick = () => { if (confirm('Clear all Tick data from this device? It stays in your account.')) out(true); };
+      $('#back', w).onclick = closeSheet;
+    });
+  }
+  function recoverySheet() {
+    openSheet(`<h3>Choose a new password</h3><div class="sub">You followed a reset link. Set a new password for your account.</div>
+      <label class="l">New password</label><input class="field" id="np" type="password" autocomplete="new-password" placeholder="At least 8 characters">
+      <div class="sub" id="amsg" style="min-height:20px;margin-top:10px"></div>
+      <button class="btn" id="go">Save password</button>`, w => {
+      $('#go', w).onclick = async () => {
+        const p = $('#np', w).value; if (p.length < 8) { acctMsg(w, 'Use a password of at least 8 characters.'); return; }
+        const { error } = await sb.auth.updateUser({ password: p });
+        if (error) acctMsg(w, friendly(error)); else { closeSheet(); flash('Password updated'); }
+      };
+    });
+  }
+  function startCloud() {
+    if (!sb) return;
+    sb.auth.onAuthStateChange((evt, session) => {
+      user = session ? session.user : null;
+      setTimeout(() => {                                          // never call Supabase from inside this callback
+        if (evt === 'PASSWORD_RECOVERY') recoverySheet();
+        if (user) { meta.dirty = meta.dirty || false; syncNow(); } else setSync('off');
+        render();
+      }, 0);
+    });
+    sb.auth.getSession().then(({ data }) => { if (data && data.session && !user) { user = data.session.user; syncNow(); render(); } });
+    setInterval(() => { if (user && document.visibilityState === 'visible') syncNow(); }, 60000);
+    document.addEventListener('visibilitychange', () => { if (user && document.visibilityState === 'visible') syncNow(); });
+    window.addEventListener('online', () => { if (user) syncNow(); });
+  }
+
   // ---------- boot ----------
   $('#logo').innerHTML = signSVG('', 52) + '<span>tick</span>';
   $('#logo').style.cssText = 'font-size:44px;gap:10px';
   settleDividends(); setInterval(settleDividends, 60000);
+  startCloud();
   render(); tick();
   setTimeout(() => { $('#splash').classList.add('hide'); if (!S.onboarded) aboutSheet(true); }, 900);
 })();
