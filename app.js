@@ -5,7 +5,7 @@
 (() => {
   'use strict';
   const KEY = 'tick.v1';
-  const VERSION = 'v16 · accounts & cloud sync';   // bump with the ?v= number in index.html so browsers fetch fresh files
+  const VERSION = 'v17 · backup & restore';   // bump with the ?v= number in index.html so browsers fetch fresh files
   const DAY = 86400;
   const $ = (s, el = document) => el.querySelector(s);
   // one tonal green family (+ ink) so every deed colour belongs to the brand
@@ -424,32 +424,97 @@
       <label class="switch"><input type="checkbox" id="snd" ${S.sound ? 'checked' : ''}><span>Celebration sounds</span></label>
       <button class="btn" id="ok">${first ? `Start with ${S.gift} Ticks` : 'Got it'}</button>
       ${first ? '<button class="link" id="signin">Already have an account? Sign in</button>' : '<button class="link" id="reset">Reset all data</button>'}
-      ${first ? '' : '<button class="link" id="export">Export a backup</button><label class="link" style="cursor:pointer">Import a backup<input type="file" id="import" accept="application/json,.json" hidden></label>'}
+      ${first ? '' : '<button class="link" id="bk">Backup &amp; restore</button>'}
       <div class="sub" style="text-align:center;margin-top:10px;font-size:12px">Tick ${VERSION}</div>`, w => {
       $('#snd', w).onchange = e => { S.sound = e.target.checked; save(); if (S.sound) chime(); };
       $('#ok', w).onclick = () => { S.onboarded = true; save(); closeSheet(); render(); };
       const si = $('#signin', w); if (si) si.onclick = () => { S.onboarded = true; save(); closeSheet(); accountSheet(); };
-      const ex = $('#export', w);
-      if (ex) ex.onclick = () => {
-        const blob = new Blob([JSON.stringify(S, null, 2)], { type: 'application/json' }), a = document.createElement('a');
-        a.href = URL.createObjectURL(blob); a.download = `tick-backup-${new Date().toISOString().slice(0, 10)}.json`; document.body.appendChild(a); a.click(); a.remove();
-        setTimeout(() => URL.revokeObjectURL(a.href), 2000); flash('Backup downloaded');
-      };
-      const im = $('#import', w);
-      if (im) im.onchange = () => {
-        const f = im.files[0]; if (!f) return; const rd = new FileReader();
-        rd.onload = () => {
-          try {
-            const d = JSON.parse(rd.result);
-            if (!d || !Array.isArray(d.deeds) || !Array.isArray(d.entries)) throw new Error('bad');
-            if (!confirm('Replace everything in the app with this backup?')) return;
-            S = Object.assign(defaults(), d); migrate(); save(); closeSheet(); render(); flash('Backup restored');
-          } catch { flash('That file is not a Tick backup'); }
-        };
-        rd.readAsText(f);
-      };
+      const bk = $('#bk', w); if (bk) bk.onclick = () => { closeSheet(); backupSheet(); };
       const r = $('#reset', w);
       if (r) r.onclick = () => { if (confirm('Delete all deeds, history and goals?')) { S = defaults(); save(); closeSheet(); render(); } };
+    });
+  }
+
+  // ---------- Backup & restore ----------
+  const BK_KEY = 'tick.lastBackup';
+  const ago = ts => { const m = Math.round((Date.now() - ts) / 60000); if (m < 1) return 'just now'; if (m < 60) return `${m} min ago`; const h = Math.round(m / 60); return h < 48 ? `${h} h ago` : `${Math.round(h / 24)} days ago`; };
+  const lastBackup = () => { try { return +localStorage.getItem(BK_KEY) || 0; } catch { return 0; } };
+  // A backup file is untrusted input. Only known fields with the right types get through, ids must be plain tokens and colours
+  // must come from the palette — several of these values are placed straight into the page, so anything else could inject markup.
+  function sanitizeBackup(d) {
+    const A = x => (Array.isArray(x) ? x : []), N = x => typeof x === 'number' && isFinite(x), T = x => typeof x === 'string';
+    const ID = x => T(x) && /^[\w:.\-]{1,80}$/.test(x), TXT = (x, n) => (T(x) ? x.slice(0, n) : '');
+    const KINDS = ['care', 'invest', 'useless', 'neutral', 'hard'];
+    const out = { onboarded: !!d.onboarded };
+    ['created', 'gift', 'lastStopped', 'divAt'].forEach(k => { if (N(d[k])) out[k] = d[k]; });
+    out.deeds = A(d.deeds).filter(x => x && ID(x.id) && T(x.name) && KINDS.includes(x.kind) &&
+      (x.kind === 'care' ? Object.prototype.hasOwnProperty.call(PILLARS, x.pillar) && ['timer', 'tap'].includes(x.mode) && N(x.pts) && x.pts > 0 : x.kind === 'neutral' || N(x.rate)))
+      .map(x => ({ id: x.id, name: TXT(x.name, 40), color: PALETTE.includes(x.color) ? x.color : PALETTE[0], kind: x.kind, rate: N(x.rate) ? x.rate : 0,
+        ...(x.kind === 'care' ? { pillar: x.pillar, mode: x.mode, pts: x.pts } : {}), ...(N(x.mod) ? { mod: x.mod } : {}) }));
+    out.entries = A(d.entries).filter(e => e && ID(e.id) && ID(e.deedId) && N(e.ts) && N(e.secs) && N(e.ticks))
+      .map(e => ({ id: e.id, deedId: e.deedId, ts: e.ts, secs: e.secs, ticks: e.ticks, ...(e.div ? { div: true } : {}) }));
+    out.notes = A(d.notes).filter(n => n && ID(n.id) && T(n.title) && N(n.ts))
+      .map(n => ({ id: n.id, ts: n.ts, kind: n.kind === 'reward' ? 'reward' : 'invest', ...(ID(n.deedId) ? { deedId: n.deedId } : {}), ...(ID(n.refId) ? { refId: n.refId } : {}),
+        title: TXT(n.title, 80), line: TXT(n.line, 160), text: TXT(n.text, 600), rating: Number.isInteger(n.rating) && n.rating >= 1 && n.rating <= 5 ? n.rating : 0, ...(N(n.edited) ? { edited: n.edited } : {}) }));
+    out.goals = A(d.goals).filter(g => g && ID(g.id) && T(g.name) && N(g.target) && g.target > 0)
+      .map(g => ({ id: g.id, name: TXT(g.name, 40), target: g.target, ...(N(g.created) ? { created: g.created } : {}), ...(N(g.mod) ? { mod: g.mod } : {}) }));
+    out.bought = A(d.bought).filter(b => b && ID(b.id) && T(b.name) && N(b.cost) && N(b.ts)).map(b => ({ id: b.id, name: TXT(b.name, 40), cost: b.cost, ts: b.ts }));
+    out.tomb = A(d.tomb).filter(ID);
+    out.chat = A(d.chat).filter(c => c && (c.from === 'me' || c.from === 'bot') && T(c.text)).map(c => ({ from: c.from, text: TXT(c.text, 600) })).slice(-40);
+    if (d.health && typeof d.health === 'object') { out.health = {}; Object.keys(PILLARS).forEach(k => { const h = d.health[k]; if (h && N(h.v) && N(h.t)) out.health[k] = { v: clamp(h.v, 0, 100), t: h.t }; }); }
+    if (d.active && ID(d.active.deedId) && N(d.active.start)) out.active = { deedId: d.active.deedId, start: d.active.start, startVal: N(d.active.startVal) ? d.active.startVal : 0 };
+    return out;
+  }
+  function parseBackup(text) {
+    const o = JSON.parse(text);
+    const d = o && o.app === 'tick' && o.data ? o.data : o;                  // new wrapped format, or a raw save from v14
+    if (!d || typeof d !== 'object' || !Array.isArray(d.deeds) || !Array.isArray(d.entries)) throw new Error('not a Tick backup');
+    return { data: sanitizeBackup(d), exportedAt: o && o.exportedAt ? Date.parse(o.exportedAt) || 0 : 0 };
+  }
+  function exportBackup() {
+    const file = { app: 'tick', format: 1, exportedAt: new Date().toISOString(), appVersion: VERSION, data: JSON.parse(JSON.stringify(S)) };
+    const blob = new Blob([JSON.stringify(file, null, 2)], { type: 'application/json' }), a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = `tick-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    try { localStorage.setItem(BK_KEY, String(Date.now())); } catch {}
+    flash('Backup downloaded');
+  }
+  function backupSheet() {
+    const lb = lastBackup();
+    openSheet(`<h3>Backup &amp; restore</h3>
+      <div class="sub">Your Ticks live in this browser${user ? ' and in your account' : ''}. A backup file is a copy you can keep anywhere — handy before clearing your browser or switching phones.</div>
+      <div class="stats">${statBox(S.entries.length, 'entries')}${statBox(S.notes.length, 'journal notes')}${statBox(S.deeds.length, 'deeds')}${statBox(S.goals.length + S.bought.length, 'goals &amp; rewards')}</div>
+      <div class="sub" style="margin-top:10px">${lb ? `Last backup: ${ago(lb)}` : 'You haven\'t made a backup on this device yet.'}</div>
+      <button class="btn" id="bx">Export backup</button>
+      <label class="btn lime" style="display:block;text-align:center;border:1.5px solid var(--ink);cursor:pointer">Import a backup file<input type="file" id="bi" accept="application/json,.json" hidden></label>
+      <div class="msg sub" id="bmsg" style="min-height:20px;margin-top:10px"></div>`, w => {
+      $('#bx', w).onclick = () => { exportBackup(); backupSheet(); };
+      const bi = $('#bi', w);
+      bi.onchange = () => {
+        const f = bi.files[0]; bi.value = ''; if (!f) return;
+        if (f.size > 8e6) { $('#bmsg', w).textContent = 'That file is too big to be a Tick backup.'; return; }
+        const rd = new FileReader();
+        rd.onload = () => { try { importChoiceSheet(parseBackup(String(rd.result)), f.name); } catch { const m = $('#bmsg', w); if (m) m.textContent = 'That file is not a Tick backup.'; } };
+        rd.onerror = () => { $('#bmsg', w).textContent = 'Could not read that file.'; };
+        rd.readAsText(f);
+      };
+    });
+  }
+  function importChoiceSheet(bk, name) {
+    const d = bk.data;
+    openSheet(`<h3>Restore this backup?</h3>
+      <div class="sub"><b>${esc(name)}</b>${bk.exportedAt ? ` · saved ${new Date(bk.exportedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}` : ''}</div>
+      <div class="stats">${statBox(d.entries.length, 'entries')}${statBox(d.notes.length, 'journal notes')}${statBox(d.deeds.length, 'deeds')}${statBox(d.goals.length + d.bought.length, 'goals &amp; rewards')}</div>
+      <div class="sub" style="margin-top:10px"><b>Merge</b> adds everything in the file to what you have now and keeps both — nothing is lost.${user ? '' : ' <b>Replace</b> swaps your data for the file.'}</div>
+      ${user ? '<div class="sub" style="margin-top:6px">You are signed in, so a backup is always merged with your account.</div>' : ''}
+      <button class="btn" id="merge">Merge with my data</button>
+      ${user ? '' : '<button class="btn ghost" id="replace">Replace everything on this device</button>'}
+      <button class="link" id="cancel">Cancel</button>`, w => {
+      const snd = S.sound;
+      $('#merge', w).onclick = () => { S = mergeStates(S, d); S.sound = snd; migrate(); save(); closeSheet(); render(); flash('Backup merged'); };
+      const rp = $('#replace', w);
+      if (rp) rp.onclick = () => { if (!confirm('Replace everything on this device with this backup?')) return; S = Object.assign(defaults(), d); S.sound = snd; migrate(); save(); closeSheet(); render(); flash('Backup restored'); };
+      $('#cancel', w).onclick = closeSheet;
     });
   }
 
@@ -694,7 +759,8 @@
       <div class="card">${shownDays.length ? shownDays.map(r => `
         <div class="dayrow"><div class="t" style="flex:1"><b>${dayLabel(r.off, r.d0)}</b><div class="sub">+${t1(r.earned)} earned · −${t1(r.spent)} spent</div></div>
         <div class="r"><b>${tk}${signed(r.earned - r.spent)}</b></div></div>`).join('') : '<div class="empty">Your days will appear here.</div>'}</div>
-      ${rows.length > 7 || S.notes.length > 4 ? `<button class="btn lime" data-act="histmore" style="border:1.5px solid var(--ink)">${histMore ? 'Show less' : 'Show more'}</button>` : ''}`;
+      ${rows.length > 7 || S.notes.length > 4 ? `<button class="btn lime" data-act="histmore" style="border:1.5px solid var(--ink)">${histMore ? 'Show less' : 'Show more'}</button>` : ''}
+      <div class="card"><b>Backup</b><div class="sub">${lastBackup() ? `Last backup: ${ago(lastBackup())}` : 'Keep a copy of your Ticks safe — export it, or restore one.'}</div><button class="btn lime" data-act="backup" style="border:1.5px solid var(--ink)">Backup &amp; restore</button></div>`;
   }
 
   // ---------- render ----------
@@ -881,6 +947,7 @@
       case 'histmore': histMore = !histMore; render(); break;
       case 'about': aboutSheet(false); break;
       case 'account': accountSheet(); break;
+      case 'backup': backupSheet(); break;
       case 'adddeed': deedSheet(); break;
       case 'logpast': logPastSheet(); break;
       case 'addgoal': goalSheet(); break;
@@ -1004,9 +1071,11 @@
       openSheet(`<h3>Your account</h3><div class="sub">Signed in as <b>${esc(user.email || 'you')}</b>. Your Ticks sync to every device you sign in on.</div>
         <div class="card" style="margin:14px 0 0"><b>Cloud sync</b><div class="sub" id="ssub">${esc(syncText())}</div></div>
         <button class="btn" id="sn">Sync now</button>
-        <button class="btn ghost" id="so">Sign out</button>`, w => {
+        <button class="btn ghost" id="so">Sign out</button>
+        <button class="link" id="bk">Backup &amp; restore</button>`, w => {
         $('#sn', w).onclick = () => { meta.dirty = true; syncNow(); };
         $('#so', w).onclick = () => signOutSheet();
+        $('#bk', w).onclick = () => backupSheet();
       });
       return;
     }
@@ -1019,7 +1088,8 @@
       <div class="sub" id="amsg" style="min-height:20px;margin-top:10px"></div>
       <button class="btn" id="go" style="margin-top:6px">${signin ? 'Sign in' : 'Create account'}</button>
       <button class="btn lime" id="gg" style="border:1.5px solid var(--ink)">Continue with Google</button>
-      ${signin ? '<button class="link" id="fp">Forgot your password?</button>' : ''}`, w => {
+      ${signin ? '<button class="link" id="fp">Forgot your password?</button>' : ''}
+      <button class="link" id="bk">Backup &amp; restore</button>`, w => {
       w.querySelectorAll('[data-m]').forEach(b => { b.onclick = () => { acctMode = b.dataset.m; accountSheet(); }; });
       const creds = () => ({ email: $('#em', w).value.trim(), password: $('#pw', w).value });
       const busy = on => { const g = $('#go', w); if (g) { g.disabled = on; g.style.opacity = on ? .6 : 1; } };   // the sheet may already be closed after a successful sign-in
@@ -1046,6 +1116,7 @@
         try { const { error } = await sb.auth.signInWithOAuth({ provider: 'google', options: redirectOpt('redirectTo') }); if (error) throw error; }
         catch (e) { acctMsg(w, /provider.*not enabled|unsupported provider/i.test(String(e && e.message)) ? 'Google sign-in is not switched on in Supabase yet.' : friendly(e)); }
       };
+      $('#bk', w).onclick = () => backupSheet();
       const fp = $('#fp', w);
       if (fp) fp.onclick = async () => {
         const email = $('#em', w).value.trim(); if (!/^\S+@\S+\.\S+$/.test(email)) { acctMsg(w, 'Type your email above first, then tap “Forgot your password?”.'); return; }

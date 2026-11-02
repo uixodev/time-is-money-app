@@ -89,9 +89,16 @@ The Supabase project **time-is-money-app** is already created, the `tick_state` 
 - Signing out asks whether to keep or clear this device's copy. If a different account signs in on a device that holds someone else's data, the app asks before replacing it — it never uploads one account's data into another.
 - `sound` is a per-device setting and is not synced.
 
-## Backup
+## Backup & restore
 
-Your data lives in this browser. In the **Ŧ. menu** use **Export a backup** to download it as a JSON file and **Import a backup** to restore it (on another device, or after clearing site data).
+Open it from the **History** tab (Backup card), the **Ŧ. menu**, or the **account** screen.
+
+- **Export backup** downloads `tick-backup-YYYY-MM-DD.json` — your deeds, history, notes, goals and rewards.
+- **Import a backup file** shows what's inside (entries, notes, deeds, goals) and lets you choose:
+  - **Merge** — adds everything from the file to what's on this device and keeps both; nothing is lost, nothing is duplicated.
+  - **Replace** — swaps this device's data for the file (only offered when signed out, because with an account the cloud would just merge your old data back).
+- Older (v14) backup files still import.
+- Backup files are treated as **untrusted input**: only known fields with valid types are accepted, ids must be plain tokens, colours must come from the palette and text is length-limited, so a doctored file can't inject code or break the app.
 
 ## Run
 
