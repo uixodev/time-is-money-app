@@ -13,8 +13,8 @@ Three layers:
 You earn Tons by refilling what has drained: **Tons = health points refilled × the pillar's price** (`PILLARS` in `app.js`).
 A pillar that is already full pays nothing, so nothing can be farmed. A day of proper upkeep earns roughly 230 Tons.
 
-- **What the % means:** each pillar is a **gauge from 0% to 100%** — how looked-after that need is *right now* (100% = fully topped up, 0% = neglected). Gauges drain slowly all day and care deeds refill them: *"Food gauge +35%"* raises that gauge by 35 points, never past 100%.
-- **Allah (faith)** is the seventh pillar: **Prayer** (one tap, +15% — about five a day keeps it level) and **Quran** (a timer, +1%/min). It drains about 3 points an hour, is labelled just *Allah* (not “gauge”), and counts toward overall Health like the others. Add your own deeds to it (dhikr, dua, charity…) from Deeds → +.
+- **Care deeds are labelled in Tons, not percentages.** A **timer** deed pays a rate in **Tons per second** while it runs (Workout `+0.02 Tons/sec`, Sleep `+0.002`, Quran `+0.01`…); a **check-in** pays a lump sum (Meal `+12.3 Tons each`, Prayer `+9 Tons each`). Behind the scenes each pillar still drains and refills (0–100%), which is why a full pillar stops paying and why very low Health blocks investing — but you only ever see and set Tons.
+- **Allah (faith)** is the seventh pillar: **Prayer** (one tap, `+9 Tons`) and **Quran** (a timer, `+0.01 Tons/sec`). It drains slowly, counts toward overall Health like the others, and you can add your own deeds to it (dhikr, dua, charity…) from Deeds → +.
 - Overall Health = 60% average of the pillars + 40% your weakest pillar.
 - **Gate:** below **40%** you can't start an investment (and a running one stops). Look after yourself first.
 
@@ -39,15 +39,15 @@ Tons can go below zero. In debt, **useless** time costs **+50%**. Earned Tons re
 
 | Type | Examples | Tons |
 |---|---|---|
-| **Care** (timer) | Sleep, Workout, Cleaning, Family time | earns, while a pillar has room |
-| **Care** (check-in) | Meal, Wash up | one tap; earns in proportion to what it refilled |
+| **Care** (timer) | Sleep, Workout, Cleaning, Family time, Quran | earns **Tons per second** while the pillar has room |
+| **Care** (check-in) | Meal, Wash up, Prayer | one tap; pays Tons each, in proportion to what it refilled |
 | **Investment** | Deep work, Learn to code | costs now, pays dividends |
 | **Useless** | Scrolling, Gaming | costs |
 | **Just living** | anything custom | time only |
 
 ## The live timer — and combining deeds
 
-While a deed runs you see the **Big number** timer: huge time digits that roll as they change, a soft glow, a thin line that fills every minute, and your **live session Tons** underneath (`+ Tons 8.11`) — plus the pillar's gauge for care deeds.
+While a deed runs you see the **Big number** timer: huge time digits that roll as they change, a soft glow, a thin line that fills every minute, and your **live session Tons** underneath (`+ Tons 8.11`) — plus a note when a care deed's pillar is full and has stopped paying.
 
 **You can run up to 3 deeds at once** — a care deed, an investment and a useless one in any mix (cleaning while you learn, say). Each earns or costs Tons at its own rate, and each is banked separately when it stops.
 
@@ -59,7 +59,7 @@ While a deed runs you see the **Big number** timer: huge time digits that roll a
 
 ## Notes & Journal
 
-- **Stop a care timer** (sleep, workout, cleaning, family time…) → a **Nicely done** pop-up shows time, Tons earned and how far the pillar rose, then asks *"How did it go?"* with an optional 1–5 *how do you feel* rating.
+- **Stop a care timer** (sleep, workout, cleaning, family time…) → a **Nicely done** pop-up shows time, Tons earned, **Tons per second** and your overall Health in words, then asks *"How did it go?"* with an optional 1–5 *how do you feel* rating.
 - **Quick check-ins** (meal, wash up) → the confirmation toast has a **+ note** button.
 - **Write a note any time** from the Journal (History tab): pick a deed or *General*.
 - **Stop an investment** (10 seconds or longer) → a **Session done** pop-up shows time invested, Tons spent, skill added and how much your daily dividend grew, then asks *"What did you get from this?"* with an optional 1–5 focus rating.
