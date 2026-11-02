@@ -5,7 +5,7 @@
 (() => {
   'use strict';
   const KEY = 'tick.v1';
-  const VERSION = 'v10 · Health income + investments';   // bump with the ?v= number in index.html so browsers fetch fresh files
+  const VERSION = 'v11 · Health income + investments';   // bump with the ?v= number in index.html so browsers fetch fresh files
   const DAY = 86400;
   const $ = (s, el = document) => el.querySelector(s);
   // one tonal green family (+ ink) so every deed colour belongs to the brand
@@ -554,7 +554,6 @@
     const v = $('#view'), sc = v.scrollTop;
     v.innerHTML = { wallet: viewWallet, deeds: viewDeeds, invest: viewInvest, goals: viewGoals, history: viewHistory }[tab]();
     v.scrollTop = sc;
-    if (tab === 'invest') { const c = $('#chat'); c && c.lastElementChild && c.lastElementChild.scrollIntoView({ block: 'nearest' }); }
   }
   let lastKey = '';
   function tick() {
@@ -704,6 +703,8 @@
   function ask(text) {
     text = text.trim(); if (!text) return;
     S.chat.push({ from: 'me', text }, { from: 'bot', text: answer(text) }); S.chat = S.chat.slice(-40); save(); render();
+    const c = $('#chat'); if (c && c.lastElementChild) c.lastElementChild.scrollIntoView({ block: 'nearest' });
+    const q = $('#q'); if (q) q.focus({ preventScroll: true });
   }
   document.addEventListener('click', e => {
     const t = e.target.closest('button'); if (!t || t.disabled) return;
