@@ -43,17 +43,18 @@ Ticks can go below zero. In debt, **useless** time costs **+50%**. Earned Ticks 
 | **Useless** | Scrolling, Gaming | costs |
 | **Just living** | anything custom | time only |
 
-## The live timer — three looks
+## The live timer — four looks
 
-While a deed runs you see one of three timer looks. Switch any time with **Look ⟳** on the running timer, or in the **Ŧ. menu → Timer look**; the choice is remembered (and synced).
+While a deed runs the **Ticks you are earning or spending are the hero**. Switch looks any time with **Look ⟳** on the running timer, or in the **Ŧ. menu → Timer look**; the choice is remembered (and synced).
 
 | Look | What you see |
 |---|---|
-| **Big number** *(default)* | Huge digits that roll as they change, a calm glow, a thin line that fills every minute, and your session Ticks underneath. |
-| **Coin stack** | A coin drops onto a growing pile for every whole Tick you earn (lime) or spend (grey-green / forest). |
-| **Seconds grid** | 60 dots light up second by second and ripple at each new minute; every finished minute adds a bead (one hour = 60 beads). |
+| **Ticks first** *(default)* | A huge live Ticks counter (`+ Ŧ. 8.52`) whose digits roll as they change, a soft glow, the rate underneath, and the elapsed time small with a minute line. |
+| **Big number** | Huge time digits that roll, a calm glow, a minute line, and the session Ticks underneath. |
+| **Coin stack** | A coin drops onto a growing pile for every whole Tick you earn (lime) or spend. |
+| **Seconds grid** | 60 dots light up second by second; every finished minute adds a bead. |
 
-[`timer-options.html`](timer-options.html) shows all three running side by side (earning / investing / wasting). The looks live in `timers.js` and honour the system *reduce motion* setting.
+[`timer-options.html`](timer-options.html) shows them side by side (earning / investing / wasting). The looks live in `timers.js` and honour the system *reduce motion* setting.
 
 ## Notes & Journal
 

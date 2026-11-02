@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#C9F26B">
 <title>Pick a timer look — Tick</title>
 <link rel="icon" type="image/svg+xml" href="icon.svg">
-<link rel="stylesheet" href="styles.css?v=19">
+<link rel="stylesheet" href="styles.css?v=20">
 <style>
   body{height:auto;padding:24px 16px 48px}
   .wrap{max-width:1120px;margin:0 auto}
@@ -25,7 +25,7 @@
 <body>
 <div class="wrap">
   <h1>Pick a timer look</h1>
-  <p class="lead">Three designs for the screen you see while a deed is running. They are live — watch them for a few seconds, flip between earning, investing and wasting time, then tell me <b>A</b>, <b>B</b> or <b>C</b>. You can also try each one inside the app (tap <b>Look ⟳</b> on a running timer).</p>
+  <p class="lead">Four designs for the screen you see while a deed is running. They are live — watch them for a few seconds, flip between earning, investing and wasting time, then tell me which one — <b>★ (new)</b>, <b>A</b>, <b>B</b> or <b>C</b>. You can also try each one inside the app (tap <b>Look ⟳</b> on a running timer).</p>
   <div class="pills" id="kinds">
     <button class="pill on" data-k="care">Earning · Workout</button>
     <button class="pill" data-k="invest">Investing · Learn to code</button>
@@ -33,7 +33,7 @@
   </div>
   <div class="grid3" id="grid"></div>
 </div>
-<script src="timers.js?v=19"></script>
+<script src="timers.js?v=20"></script>
 <script>
 (function () {
   const KINDS = {
@@ -41,13 +41,13 @@
     invest: { name: 'Learn to code', rate: -0.5, verb: 'Investing in' },
     useless: { name: 'Scrolling', rate: -1, verb: 'Spending on' },
   };
-  const LETTERS = ['A', 'B', 'C'];
+  const LETTERS = ['★', 'A', 'B', 'C'];
   let kind = 'care', t0 = Date.now() - (6 * 60 + 41) * 1000;     // pretend it started 6m41s ago
   const grid = document.getElementById('grid');
   const reduced = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
   const ctx = () => {
     const k = KINDS[kind], el = (Date.now() - t0) / 1000;
-    return { kind, elapsed: el, ticks: k.rate * el / 60, reduced, pillar: k.pillar ? { name: k.pillar.name, pct: Math.min(100, k.pillar.start + k.pillar.pts * el / 60) } : null };
+    return { kind, elapsed: el, ticks: k.rate * el / 60, rate: (k.rate > 0 ? '+' : '−') + Math.abs(k.rate) + '/min', reduced, pillar: k.pillar ? { name: k.pillar.name, pct: Math.min(100, k.pillar.start + k.pillar.pts * el / 60) } : null };
   };
   function build() {
     const k = KINDS[kind];

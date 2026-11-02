@@ -272,3 +272,21 @@ textarea.field{min-height:96px;resize:vertical;line-height:1.4}
 .k-useless .tA-glow{background:radial-gradient(closest-side,color-mix(in srgb,var(--tc) 10%,transparent),transparent)}
 .tt .t-sign{margin-right:.04em}
 .tt .tk{margin:0 .08em 0 0}
+
+/* D · Ticks first */
+.tD{padding:20px 0 6px;overflow:hidden;border-radius:20px}
+.tD-glow{position:absolute;left:50%;top:38%;width:340px;height:340px;margin:-170px 0 0 -170px;background:radial-gradient(closest-side,color-mix(in srgb,var(--tc) 34%,transparent),transparent);animation:glow 3.4s ease-in-out infinite alternate;pointer-events:none}
+.k-useless .tD-glow{background:radial-gradient(closest-side,color-mix(in srgb,var(--tc) 11%,transparent),transparent)}
+.tD-num{position:relative;display:flex;justify-content:center;align-items:baseline;font-weight:800;line-height:1;font-variant-numeric:tabular-nums}
+.tD-sign{font-size:44px;margin-right:4px}
+.tD .tk{width:.5em;height:.5em;font-size:78px;margin:0 8px 0 2px;align-self:center}
+.tD-digits{display:inline-flex;font-size:78px;letter-spacing:-3px}
+.tD.long .tD-digits,.tD.long .tk{font-size:60px}
+.tD-digits .dg{display:inline-block;min-width:.58em;text-align:center}
+.tD-digits .pt{display:inline-block;min-width:.28em;text-align:center}
+.tD-rate{position:relative;margin-top:12px;font-size:14px;font-weight:700;color:var(--muted)}
+.tD-time{position:relative;display:flex;justify-content:center;align-items:center;gap:12px;margin-top:14px;font-size:20px;font-weight:800;font-variant-numeric:tabular-nums}
+.tD-time .t-clock{opacity:.85}
+.tD-min{display:block;width:86px;height:6px;border-radius:99px;background:var(--line);overflow:hidden}
+.tD-min i{display:block;height:100%;width:100%;background:var(--tc);border-radius:99px;transform-origin:left;animation:minfill 60s linear infinite}
+.tD-sub{position:relative;margin-top:6px;font-size:13px;font-weight:700;color:var(--muted);min-height:16px}

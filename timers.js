@@ -3,7 +3,7 @@
  *   TickTimers.render(style, ctx)        -> HTML string (call once when the session screen is drawn)
  *   TickTimers.update(style, ctx, root)  -> updates that HTML in place (call ~4×/second; never rebuilds, so animations keep running)
  *
- * ctx = { kind: 'care'|'invest'|'useless'|'neutral', elapsed (seconds), ticks (signed, this session),
+ * ctx = { kind: 'care'|'invest'|'useless'|'neutral', elapsed (seconds), ticks (signed, this session), rate (label, e.g. '+1.2/min'),
  *         pillar: { name, pct } | null, signHTML (the Ŧ. sign as an <svg class="tk">), reduced (bool) }
  */
 (function () {
@@ -90,15 +90,41 @@
     st.min = mins;
   }
 
-  const R = { number: renderNumber, coins: renderCoins, grid: renderGrid }, U = { number: updateNumber, coins: updateCoins, grid: updateGrid };
+  // ───────────── D · Ticks first ─────────────
+  function renderTicks(ctx) {
+    return `<div class="tt tD k-${ctx.kind}" data-style="ticks">
+      <div class="tD-glow"></div>
+      <div class="tD-num" role="timer" aria-label="Ticks this session"><span class="t-sign tD-sign"></span>${sign(ctx)}<span class="tD-digits"></span></div>
+      <div class="tD-rate t-rate"></div>
+      <div class="tD-time"><span class="t-clock">${clockStr(ctx.elapsed)}</span><span class="tD-min"><i style="${delay(ctx.elapsed)}"></i></span></div>
+      <div class="tD-sub t-sub"></div></div>`;
+  }
+  function updateTicks(ctx, root) {
+    q(root, '.t-sign').textContent = signChar(ctx.ticks);
+    q(root, '.t-clock').textContent = clockStr(ctx.elapsed);
+    q(root, '.t-rate').textContent = ctx.kind === 'neutral' ? 'no Ticks change' : (ctx.rate || '') + (ctx.rate ? ' · ' : '') + 'Ticks this session';
+    q(root, '.t-sub').textContent = ctx.pillar ? `${ctx.pillar.name} ${Math.round(ctx.pillar.pct)}%` : '';
+    const s = num2(ctx.ticks), box = q(root, '.tD-digits'); let spans = box.children;
+    root.classList.toggle('long', s.length > 5);
+    if (spans.length !== s.length) {                                                                   // the number grew a digit: rebuild
+      box.innerHTML = [...s].map(ch => (ch === '.' ? '<span class="pt">.</span>' : `<span class="dg">${ch}</span>`)).join(''); return;
+    }
+    [...s].forEach((ch, i) => {                                                                        // otherwise only the digits that changed roll in
+      const e = spans[i];
+      if (e.textContent !== ch) { e.textContent = ch; if (!ctx.reduced && ch !== '.') { e.classList.remove('roll'); void e.offsetWidth; e.classList.add('roll'); } }
+    });
+  }
+
+  const R = { ticks: renderTicks, number: renderNumber, coins: renderCoins, grid: renderGrid }, U = { ticks: updateTicks, number: updateNumber, coins: updateCoins, grid: updateGrid };
   window.TickTimers = {
     STYLES: [
+      { id: 'ticks', name: 'Ticks first', blurb: 'The Ticks you are earning or spending — huge, rolling live. Time is small.' },
       { id: 'number', name: 'Big number', blurb: 'Huge digits, a calm glow and a thin line that fills every minute.' },
       { id: 'coins', name: 'Coin stack', blurb: 'A coin drops onto the pile for every Tick you earn or spend.' },
       { id: 'grid', name: 'Seconds grid', blurb: '60 dots light up second by second; each finished minute adds a bead.' },
     ],
     signHTML: SIGN,
-    render: (style, ctx) => (R[style] || R.number)(ctx),
-    update: (style, ctx, root) => { if (root) (U[style] || U.number)(ctx, root); },
+    render: (style, ctx) => (R[style] || R.ticks)(ctx),
+    update: (style, ctx, root) => { if (root) (U[style] || U.ticks)(ctx, root); },
   };
 })();
