@@ -43,6 +43,12 @@ Ticks can go below zero. In debt, **useless** time costs **+50%**. Earned Ticks 
 | **Useless** | Scrolling, Gaming | costs |
 | **Just living** | anything custom | time only |
 
+## Notes & Journal
+
+- **Stop an investment** (10 seconds or longer) → a **Session done** pop-up shows time invested, Ticks spent, skill added and how much your daily dividend grew, then asks *"What did you get from this?"* with an optional 1–5 focus rating.
+- **Buy a goal** → an **Enjoy it** pop-up shows what it cost, what you have left and how long it took, then asks *"How was it? Was it worth it?"*.
+- Notes are kept in the **Journal** (History tab). Tap one to edit or delete it. The latest note also shows on its investment card, and reward notes show under *Rewards you've bought*. Add a note any time with **+ note**.
+
 ## Coins & sign
 
 Ticks come in **Tick (1)**, **Ten (10)** and **Hundred (100)** coins. The currency sign is a struck T with a seconds pip (`brand/`).
@@ -53,7 +59,7 @@ Ticks come in **Tick (1)**, **Ten (10)** and **Hundred (100)** coins. The curren
 - **Deeds** – care / investment / useless / living deeds. Add, edit (✎) or delete; log time you already spent.
 - **Invest** – your portfolio and the What-if calculator.
 - **Goals** – rewards to save Ticks for. Edit (✎), then **Buy it** — with confetti and a chime (switch sounds off in the Ŧ. menu).
-- **History** – earned vs. spent, 7-day time chart, day by day.
+- **History** – earned vs. spent, 7-day time chart, your **Journal** of notes, day by day.
 
 Colours: light lime `#C9F26B`, forest ink `#16210F`, tonal greens. Dark mode included.
 

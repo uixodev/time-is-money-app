@@ -5,7 +5,7 @@
 (() => {
   'use strict';
   const KEY = 'tick.v1';
-  const VERSION = 'v11 · Health income + investments';   // bump with the ?v= number in index.html so browsers fetch fresh files
+  const VERSION = 'v12 · Health income + investments + journal';   // bump with the ?v= number in index.html so browsers fetch fresh files
   const DAY = 86400;
   const $ = (s, el = document) => el.querySelector(s);
   // one tonal green family (+ ink) so every deed colour belongs to the brand
@@ -53,6 +53,7 @@
     goals: [],     // {id, name, target (Ticks)}
     bought: [],    // {id, name, cost, ts} rewards you've bought
     sound: true,   // celebration sounds
+    notes: [],     // journal: {id, ts, kind:'invest'|'reward', deedId?, refId?, title, line, text, rating}
     divAt: Date.now(),  // last time dividends were settled
     chat: [],
   });
@@ -310,14 +311,74 @@
     })(start);
   }
 
+  // ---------- notes, summaries & journal ----------
+  const fmtDays = n => n === Infinity ? 'not yet — invest more' : n > 365 ? 'over a year' : `about ${n} day${n === 1 ? '' : 's'}`;
+  const stars = r => r ? '●'.repeat(r) + '○'.repeat(5 - r) : '';
+  const fmtDate = ts => new Date(ts).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+  const addNote = f => { S.notes.unshift({ id: uid(), ts: Date.now(), ...f }); save(); };
+  // one popup used everywhere: optional summary stats + a note + a 1–5 rating
+  function noteSheet(o) {
+    let rating = o.rating || 0;
+    openSheet(`<h3>${o.heading}</h3>${o.sub ? `<div class="sub">${o.sub}</div>` : ''}
+      ${o.stats || ''}
+      <label class="l">${o.noteLabel || 'Your note'}</label>
+      <textarea class="field" id="nt" rows="4" maxlength="600" placeholder="${esc(o.placeholder || '')}">${esc(o.text || '')}</textarea>
+      <label class="l">${o.ratingLabel || 'How did it go?'} (optional)</label>
+      <div class="rate" id="rt">${[1, 2, 3, 4, 5].map(n => `<button type="button" class="rbtn ${rating === n ? 'on' : ''}" data-r="${n}">${n}</button>`).join('')}</div>
+      <button class="btn" id="ok">${o.saveLabel || 'Save note'}</button>
+      <button class="link" id="skip">${o.onDelete ? 'Delete this note' : 'Skip'}</button>`, w => {
+      $('#rt', w).onclick = e => { const b = e.target.closest('.rbtn'); if (!b) return; const n = +b.dataset.r; rating = rating === n ? 0 : n; w.querySelectorAll('.rbtn').forEach(x => x.classList.toggle('on', +x.dataset.r === rating)); };
+      $('#ok', w).onclick = () => { const text = $('#nt', w).value.trim(); closeSheet(); if (text || rating) o.onSave(text, rating); };
+      $('#skip', w).onclick = () => { if (o.onDelete) { if (confirm('Delete this note?')) { closeSheet(); o.onDelete(); } } else closeSheet(); };
+      $('#nt', w).focus({ preventScroll: true });
+    });
+  }
+  const statBox = (v, l) => `<div class="stat"><b>${v}</b><span>${l}</span></div>`;
+  function investSummary(d, secs, cost, divBefore, divAfter) {
+    const st = investStats(d), gain = divAfter - divBefore;
+    noteSheet({
+      heading: 'Session done 👏', sub: `<b>${esc(d.name)}</b> · total ${nf(Math.round(st.hours * 10) / 10)}h invested`,
+      stats: `<div class="stats">${statBox(dur(secs), 'time invested')}${statBox(tk + '−' + t1(cost), 'Ticks spent')}${statBox('+' + (secs / 3600).toFixed(1) + 'h', 'skill added')}${statBox(tk + '+' + t1(gain), 'dividend / day')}</div>
+        <div class="sub" style="margin-top:10px">${st.net >= 0 ? 'This investment is in profit ✓' : `Break-even: ${fmtDays(st.days)}`}</div>`,
+      noteLabel: 'What did you get from this?', placeholder: 'What did you get done? What did you learn? What is next?', ratingLabel: 'How focused were you?',
+      onSave: (text, rating) => { addNote({ kind: 'invest', deedId: d.id, title: d.name, line: `${dur(secs)} · −${t1(cost)} Ticks · dividend +${t1(gain)}/day`, text, rating }); flash('Saved to your Journal'); render(); },
+    });
+  }
+  function rewardSummary(b, g, left) {
+    const took = g && g.created ? Math.max(1, Math.round((b.ts - g.created) / 86400000)) : 0;
+    noteSheet({
+      heading: 'Enjoy it 🎉', sub: `<b>${esc(b.name)}</b>`,
+      stats: `<div class="stats">${statBox(tk + '−' + num(b.cost), 'Ticks spent')}${statBox(tk + t1(left), 'Ticks left')}${took ? statBox(took + (took === 1 ? ' day' : ' days'), 'to earn it') : ''}</div>`,
+      noteLabel: 'How was it? Was it worth it?', placeholder: 'What did you do with it? Would you buy it again?', ratingLabel: 'Worth it?',
+      onSave: (text, rating) => { addNote({ kind: 'reward', refId: b.id, title: b.name, line: `−${num(b.cost)} Ticks${took ? ` · took ${took} day${took === 1 ? '' : 's'}` : ''}`, text, rating }); flash('Saved to your Journal'); render(); },
+    });
+  }
+  function freeNoteSheet(kind, ref, title) {
+    noteSheet({ heading: 'Add a note', sub: `<b>${esc(title)}</b>`, noteLabel: 'What happened?', placeholder: 'Write anything worth remembering…', onSave: (text, rating) => { addNote({ kind, ...ref, title, line: '', text, rating }); flash('Saved to your Journal'); render(); } });
+  }
+  function editNoteSheet(id) {
+    const n = S.notes.find(x => x.id === id); if (!n) return;
+    noteSheet({
+      heading: 'Edit note', sub: `<b>${esc(n.title)}</b> · ${fmtDate(n.ts)}${n.line ? `<br>${esc(n.line)}` : ''}`, noteLabel: 'Your note', text: n.text, rating: n.rating, saveLabel: 'Save changes',
+      onSave: (text, rating) => { Object.assign(n, { text, rating }); save(); render(); },
+      onDelete: () => { S.notes = S.notes.filter(x => x.id !== id); save(); render(); },
+    });
+  }
+  const noteHTML = n => `<button class="jn" data-edit-note="${n.id}">
+      <div class="jt"><b>${esc(n.title)}</b><span>${fmtDate(n.ts)}</span></div>
+      ${n.line ? `<div class="sub">${esc(n.line)}</div>` : ''}
+      ${n.rating ? `<div class="stars">${stars(n.rating)}</div>` : ''}
+      ${n.text ? `<div class="jtext">${esc(n.text)}</div>` : ''}</button>`;
+
   function buyGoal(id, el) {
     const g = S.goals.find(x => x.id === id); if (!g) return;
     if (balance() < g.target) { flash(`You need ${t1(g.target - balance())} more Ticks`); return; }
     const rid = `reward:${uid()}`, ts = Date.now();
-    S.bought.unshift({ id: rid, name: g.name, cost: g.target, ts });
+    const rec = { id: rid, name: g.name, cost: g.target, ts }; S.bought.unshift(rec);
     S.entries.push({ id: uid(), deedId: rid, ts, secs: 0, ticks: -g.target });
     S.goals = S.goals.filter(x => x.id !== id);
-    save(); flash(`Enjoy! “${g.name}” is yours 🎉`); render(); confetti(el); chime();
+    save(); render(); confetti(el); chime();
+    rewardSummary(rec, g, balance());
   }
 
   // ---------- ui state ----------
@@ -473,7 +534,6 @@
     const invs = S.deeds.filter(d => d.kind === 'invest'), st = invs.map(d => ({ d, ...investStats(d) }));
     const perDay = st.reduce((a, x) => a + x.perDay, 0), spent = st.reduce((a, x) => a + x.spent, 0), returned = st.reduce((a, x) => a + x.returned, 0);
     const chips = ['2h learn to code', '1h deep work', '100 ticks', 'how is my health?'];
-    const fmtDays = n => n === Infinity ? 'not yet — invest more' : n > 365 ? 'over a year' : `about ${n} day${n === 1 ? '' : 's'}`;
     return `
       ${head('Invest', '<button class="icon-btn" data-act="addinvest" aria-label="Add investment">+</button>')}
       <div class="card hero">
@@ -495,7 +555,8 @@
             <div><div class="mid" style="font-size:24px">${x.spent >= 1 ? (x.roi >= 0 ? '+' : '−') + Math.abs(Math.round(x.roi * 100)) + '%' : '—'}</div><div class="sub">return so far</div></div>
           </div>
           <div class="sub" style="margin-top:10px">${x.spent < 1 ? 'Just getting started — put a few hours in.' : x.net >= 0 ? 'In profit ✓' : `Break-even: ${fmtDays(x.days)}`}</div>
-          <button class="btn" data-start="${x.d.id}" ${(S.active || gated()) ? 'disabled' : ''}>${gated() ? 'Health too low' : 'Invest now'}</button>
+          ${(() => { const n = S.notes.find(q => q.deedId === x.d.id); const cnt = S.notes.filter(q => q.deedId === x.d.id).length; return n ? `<div class="jtext sub" style="margin-top:10px;font-style:italic">“${esc(n.text || 'Rated ' + n.rating + '/5')}”</div><div class="sub" style="font-size:12px">${cnt} note${cnt === 1 ? '' : 's'} in your Journal</div>` : ''; })()}
+          <div style="display:flex;gap:10px;align-items:center;margin-top:12px"><button class="btn" style="margin:0;flex:1" data-start="${x.d.id}" ${(S.active || gated()) ? 'disabled' : ''}>${gated() ? 'Health too low' : 'Invest now'}</button><button class="chip" style="margin:0" data-add-note="${x.d.id}">+ note</button></div>
         </div>`).join('') : '<div class="card"><div class="empty">No investments yet.<br>Tap + to add one, like “Learn to code”.</div></div>'}
       <h2>What if…?</h2>
       <div class="card">
@@ -521,8 +582,8 @@
           <button class="btn" data-buy="${g.id}" ${can ? '' : 'disabled'}>${can ? `Buy it · ${num(g.target)} Ticks` : 'Keep earning'}</button></div>`;
       }).join('') : '<div class="card"><div class="empty">No goals yet.<br>Tap + and name a guilt-free reward, like “Gaming weekend”.</div></div>'}
       ${S.bought.length ? `<h2>Rewards you've bought</h2><div class="card">${S.bought.slice(0, 20).map(b => `
-        <div class="row"><div class="t"><b>${esc(b.name)}</b><span>${new Date(b.ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span></div>
-        <div class="r"><b>${tk}−${num(b.cost)}</b></div></div>`).join('')}</div>` : ''}`;
+        ${(() => { const n = S.notes.find(x => x.refId === b.id); return `<div class="row"><div class="t"><b>${esc(b.name)}</b><span>${new Date(b.ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}${n && n.rating ? ' · ' + stars(n.rating) : ''}</span>${n && n.text ? `<div class="jtext sub">${esc(n.text)}</div>` : ''}</div>
+        <div class="r"><b>${tk}−${num(b.cost)}</b></div>${n ? `<button class="x edit" data-edit-note="${n.id}" aria-label="Edit note">✎</button>` : `<button class="chip" style="margin:0" data-add-reward-note="${b.id}">+ note</button>`}</div>`; })()}`).join('')}</div>` : ''}`;
   }
 
   function viewHistory() {
@@ -541,6 +602,8 @@
       <div class="card"><b>Where your time went</b>
         <div class="chart">${rows.map(r => `<div class="col"><div class="stack" title="${dur(r.s)}">${Object.entries(r.by).map(([id, s]) => `<i style="height:${Math.min(100, (s / DAY) * 100)}%;background:${deedOf(id).color}"></i>`).join('')}</div><small>${new Date(r.d0).toLocaleDateString(undefined, { weekday: 'narrow' })}</small></div>`).join('')}</div>
         <div class="sub" style="margin-top:10px">Each bar is one day of 86,400 seconds. Empty space = time that expired unspent.</div></div>
+      <h2>Journal</h2>
+      <div class="card">${S.notes.length ? S.notes.slice(0, 40).map(noteHTML).join('') : '<div class="empty">No notes yet.<br>After you stop an investment or buy a goal you can write what you got from it.</div>'}</div>
       <h2>Day by day</h2>
       <div class="card">${[...rows].reverse().map(r => `
         <div class="dayrow"><div class="t" style="flex:1"><b>${r.off === 0 ? 'Today' : r.off === 1 ? 'Yesterday' : new Date(r.d0).toLocaleDateString(undefined, { weekday: 'long' })}</b>
@@ -583,13 +646,15 @@
   }
   setInterval(tick, 250);
 
-  function stopActive() {
+  function stopActive(opts = {}) {
     const a = S.active; if (!a) return;
-    const d = deedOf(a.deedId), end = Math.min(Date.now(), a.start + DAY * 1000);
+    const d = deedOf(a.deedId), end = Math.min(Date.now(), a.start + DAY * 1000), secs = (end - a.start) / 1000;
+    const isInv = d.kind === 'invest', cost = isInv ? d.rate * secs / 60 : 0, divBefore = isInv ? dividendPerDay(d) : 0;
     S.active = null;
     addSpan(a, end);
     if (d.kind === 'care' && d.mode === 'timer' && d.pts > 0) refill(d.pillar, d.pts * (end - a.start) / 60000);
     save(); render();
+    if (!opts.silent && isInv && secs >= 10) investSummary(d, secs, cost, divBefore, dividendPerDay(d));   // popup: what did you get from this?
   }
 
   // ---------- sheets ----------
@@ -639,13 +704,13 @@
           fields = { ...fields, pillar: $('#cp', w).value, mode: $('#cm', w).value, pts, rate: 0 };
         } else fields = { ...fields, rate: 0, pillar: undefined, mode: undefined, pts: undefined };
         if (ed) {
-          if (S.active && S.active.deedId === ed.id) stopActive();   // bank the running session at the old settings first
+          if (S.active && S.active.deedId === ed.id) stopActive({ silent: true });   // bank the running session at the old settings first
           Object.assign(ed, fields);
         } else S.deeds.push({ id: uid(), ...fields });
         save(); closeSheet(); render();
       };
       const del = $('#del', w);
-      if (del) del.onclick = () => { if (confirm(`Delete “${ed.name}”? Your history keeps its time and Ticks.`)) { if (S.active && S.active.deedId === ed.id) stopActive(); S.deeds = S.deeds.filter(x => x.id !== ed.id); save(); closeSheet(); render(); } };
+      if (del) del.onclick = () => { if (confirm(`Delete “${ed.name}”? Your history keeps its time and Ticks.`)) { if (S.active && S.active.deedId === ed.id) stopActive({ silent: true }); S.deeds = S.deeds.filter(x => x.id !== ed.id); save(); closeSheet(); render(); } };
       $('#dn', w).focus();
     });
   }
@@ -690,7 +755,7 @@
       $('#ok', w).onclick = () => {
         const name = $('#gn', w).value.trim(), t = parseFloat($('#gt', w).value);
         if (!name) { $('#gn', w).focus(); return; } if (!(t > 0)) { $('#gt', w).focus(); return; }
-        if (ed) Object.assign(ed, { name, target: t }); else S.goals.push({ id: uid(), name, target: t });
+        if (ed) Object.assign(ed, { name, target: t }); else S.goals.push({ id: uid(), name, target: t, created: Date.now() });
         save(); closeSheet(); render();
       };
       const del = $('#del', w);
@@ -719,6 +784,9 @@
       S.active = { deedId: d.start, start: Date.now(), startVal: dd.kind === 'care' ? hBase(dd.pillar) : 0 }; save(); render(); return;
     }
     if (d.buy) { buyGoal(d.buy, t); return; }
+    if (d.editNote) { editNoteSheet(d.editNote); return; }
+    if (d.addNote) { freeNoteSheet('invest', { deedId: d.addNote }, deedOf(d.addNote).name); return; }
+    if (d.addRewardNote) { const b = S.bought.find(x => x.id === d.addRewardNote); if (b) freeNoteSheet('reward', { refId: b.id }, b.name); return; }
     if (d.editGoal) { goalSheet(d.editGoal); return; }
     if (d.edit) { deedSheet(d.edit); return; }
     if (d.delGoal) { S.goals = S.goals.filter(g => g.id !== d.delGoal); save(); render(); return; }
