@@ -5,6 +5,7 @@
 (() => {
   'use strict';
   const KEY = 'tick.v1';
+  const VERSION = 'v8 · Health income + investments';   // bump with the ?v= number in index.html so browsers fetch fresh files
   const DAY = 86400;
   const $ = (s, el = document) => el.querySelector(s);
   // one tonal green family (+ ink) so every deed colour belongs to the brand
@@ -344,7 +345,8 @@
       ${coinList()}
       <label class="switch"><input type="checkbox" id="snd" ${S.sound ? 'checked' : ''}><span>Celebration sounds</span></label>
       <button class="btn" id="ok">${first ? `Start with ${S.gift} Ticks` : 'Got it'}</button>
-      ${first ? '' : '<button class="link" id="reset">Reset all data</button>'}`, w => {
+      ${first ? '' : '<button class="link" id="reset">Reset all data</button>'}
+      <div class="sub" style="text-align:center;margin-top:10px;font-size:12px">Tick ${VERSION}</div>`, w => {
       $('#snd', w).onchange = e => { S.sound = e.target.checked; save(); if (S.sound) chime(); };
       $('#ok', w).onclick = () => { S.onboarded = true; save(); closeSheet(); render(); };
       const r = $('#reset', w);
