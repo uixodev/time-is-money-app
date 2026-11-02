@@ -5,7 +5,7 @@
 (() => {
   'use strict';
   const KEY = 'tick.v1';
-  const VERSION = 'v9 · Health income + investments + tap-to-edit goals';   // bump with the ?v= number in index.html so browsers fetch fresh files
+  const VERSION = 'v10 · Health income + investments';   // bump with the ?v= number in index.html so browsers fetch fresh files
   const DAY = 86400;
   const $ = (s, el = document) => el.querySelector(s);
   // one tonal green family (+ ink) so every deed colour belongs to the brand
@@ -387,11 +387,6 @@
         <div class="big live" id="bal">${tk}${tBig(bal)}</div>
         <div class="sub live" id="earnline">+${t1(earned)} earned today · −${t1(spent)} spent</div>
       </div>
-      <div class="card" id="health">
-        <div style="display:flex;justify-content:space-between;align-items:baseline"><b>Health</b><span class="mid live" id="hscore">${Math.round(hs)}<small>%</small></span></div>
-        <div class="sub" id="hsub">${healthSub()}</div>
-        <div class="pillars" id="pillars">${pillarsHTML()}</div>
-      </div>
       <div class="card">
         ${S.active ? (() => { const d = deedOf(S.active.deedId); return `
           <div class="sub"><span class="pulse"></span>${{ invest: 'Investing in', care: 'Looking after', useless: 'Spending on', neutral: 'Doing' }[d.kind]} <b>${esc(d.name)}</b> · ${rateLbl(d)}</div>
@@ -399,7 +394,7 @@
           <div class="sub live" id="sess"></div>
           <button class="btn stop" data-act="stop">Stop</button>`; })() : `
           <div class="mid">What are you doing?</div>
-          <div class="sub">${gated() ? 'Health is too low to invest. Look after yourself first.' : 'Looking after yourself earns Ticks. Investing pays back later. Useless things just cost.'}</div>
+          <div class="sub">${gated() ? `Health is too low to invest — refill ${lowest(2).map(k => PILLARS[k].name).join(' or ')} first.` : 'Looking after yourself earns Ticks. Investing pays back later. Useless things just cost.'}</div>
           ${group('care', 'Look after yourself · earns')}${group('invest', 'Invest · pays back later')}${group('useless', 'Spend · no return')}${group('neutral', 'Just living')}`}
       </div>
       <div class="purse" id="purse">${purseHTML()}</div>
