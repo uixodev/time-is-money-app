@@ -5,7 +5,7 @@
 (() => {
   'use strict';
   const KEY = 'tick.v1';
-  const VERSION = 'v13 · Health income + investments + journal';   // bump with the ?v= number in index.html so browsers fetch fresh files
+  const VERSION = 'v14 · Health income + investments + journal';   // bump with the ?v= number in index.html so browsers fetch fresh files
   const DAY = 86400;
   const $ = (s, el = document) => el.querySelector(s);
   // one tonal green family (+ ink) so every deed colour belongs to the brand
@@ -62,7 +62,7 @@
   try { S = Object.assign(defaults(), JSON.parse(localStorage.getItem(KEY) || '{}')); }
   catch { S = defaults(); }
   const uid = () => Math.random().toString(36).slice(2, 9);
-  (function migrate() {
+  function migrate() {
     const OLDK = { d1: ['hard', 3], d3: ['hard', 4], d5: ['useless', 1] };
     S.deeds.forEach((d, i) => {
       if (!PALETTE.includes(d.color)) d.color = PALETTE[i % PALETTE.length];
@@ -79,7 +79,8 @@
     defaultDeeds().filter(n => n.kind === 'care').forEach(n => { if (!S.deeds.some(d => d.kind === 'care' && d.pillar === n.pillar)) S.deeds.push({ ...n }); });
     S.entries.forEach(e => { if (typeof e.ticks !== 'number') { const d = S.deeds.find(x => x.id === e.deedId); e.ticks = d ? sgn(d) * d.rate * e.secs / 60 : 0; } });
     S.goals = S.goals.filter(g => g.target);
-  })();
+  }
+  migrate();
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch {} };
 
   // ---------- currency icons ----------
@@ -408,9 +409,29 @@
       <label class="switch"><input type="checkbox" id="snd" ${S.sound ? 'checked' : ''}><span>Celebration sounds</span></label>
       <button class="btn" id="ok">${first ? `Start with ${S.gift} Ticks` : 'Got it'}</button>
       ${first ? '' : '<button class="link" id="reset">Reset all data</button>'}
+      ${first ? '' : '<button class="link" id="export">Export a backup</button><label class="link" style="cursor:pointer">Import a backup<input type="file" id="import" accept="application/json,.json" hidden></label>'}
       <div class="sub" style="text-align:center;margin-top:10px;font-size:12px">Tick ${VERSION}</div>`, w => {
       $('#snd', w).onchange = e => { S.sound = e.target.checked; save(); if (S.sound) chime(); };
       $('#ok', w).onclick = () => { S.onboarded = true; save(); closeSheet(); render(); };
+      const ex = $('#export', w);
+      if (ex) ex.onclick = () => {
+        const blob = new Blob([JSON.stringify(S, null, 2)], { type: 'application/json' }), a = document.createElement('a');
+        a.href = URL.createObjectURL(blob); a.download = `tick-backup-${new Date().toISOString().slice(0, 10)}.json`; document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(a.href), 2000); flash('Backup downloaded');
+      };
+      const im = $('#import', w);
+      if (im) im.onchange = () => {
+        const f = im.files[0]; if (!f) return; const rd = new FileReader();
+        rd.onload = () => {
+          try {
+            const d = JSON.parse(rd.result);
+            if (!d || !Array.isArray(d.deeds) || !Array.isArray(d.entries)) throw new Error('bad');
+            if (!confirm('Replace everything in the app with this backup?')) return;
+            S = Object.assign(defaults(), d); migrate(); save(); closeSheet(); render(); flash('Backup restored');
+          } catch { flash('That file is not a Tick backup'); }
+        };
+        rd.readAsText(f);
+      };
       const r = $('#reset', w);
       if (r) r.onclick = () => { if (confirm('Delete all deeds, history and goals?')) { S = defaults(); save(); closeSheet(); render(); } };
     });
@@ -587,29 +608,77 @@
         <div class="r"><b>${tk}−${num(b.cost)}</b></div>${n ? `<button class="x edit" data-edit-note="${n.id}" aria-label="Edit note">✎</button>` : `<button class="chip" style="margin:0" data-add-reward-note="${b.id}">+ note</button>`}</div>`; })()}`).join('')}</div>` : ''}`;
   }
 
+  // ---------- History ----------
+  let histRange = 7, histMore = false;
+  const CAT = { care: 'Looking after yourself', div: 'Dividends', other: 'Other income', invest: 'Investing', useless: 'Useless time', reward: 'Rewards bought', otherOut: 'Other' };
+  const catOf = e => {
+    if (e.div) return 'div';
+    if (String(e.deedId).startsWith('reward:')) return 'reward';
+    const d = deedOf(e.deedId);
+    if (e.ticks > 0) return d.kind === 'care' ? 'care' : 'other';
+    return d.kind === 'invest' ? 'invest' : d.kind === 'useless' ? 'useless' : 'otherOut';
+  };
+  const dayLabel = (off, d0) => off === 0 ? 'Today' : off === 1 ? 'Yesterday' : new Date(d0).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+  function careStreak() {
+    const careIds = new Set(S.deeds.filter(d => d.kind === 'care').map(d => d.id)), days = new Set();
+    S.entries.forEach(e => { if (careIds.has(e.deedId) && e.ticks > 0) days.add(new Date(e.ts).setHours(0, 0, 0, 0)); });
+    let n = 0;
+    for (let off = 0; off < 400; off++) { const has = days.has(dayStart(off)); if (has) n++; else if (off > 0) break; }
+    return n;
+  }
   function viewHistory() {
-    const rows = [6, 5, 4, 3, 2, 1, 0].map(off => {
-      const d0 = dayStart(off), by = dayByDeed(off), s = Math.min(DAY, sum(by)), et = dayEarnSpend(off);
-      return { off, d0, by, s, ...et, valid: d0 + 86400000 > S.created };
-    });
-    const valid = rows.filter(r => r.valid), n = Math.max(1, valid.length);
-    const avgE = valid.reduce((a, r) => a + r.earned, 0) / n, avgS = valid.reduce((a, r) => a + r.spent, 0) / n;
+    const offs = Array.from({ length: histRange }, (_, i) => histRange - 1 - i).filter(off => dayStart(off) + 86400000 > S.created);
+    const rows = offs.map(off => ({ off, d0: dayStart(off), ...dayEarnSpend(off) }));
+    const n = Math.max(1, rows.length), from = dayStart(histRange - 1);
+    const earned = rows.reduce((a, r) => a + r.earned, 0), spent = rows.reduce((a, r) => a + r.spent, 0), net = earned - spent;
+    // where Ticks came from / went
+    const tin = {}, tout = {};
+    S.entries.forEach(e => { if (e.ts < from || !e.ticks) return; const c = catOf(e); const m = e.ticks > 0 ? tin : tout; m[c] = (m[c] || 0) + Math.abs(e.ticks); });
+    if (S.active) { const t = activeTicks(from, Infinity), d = deedOf(S.active.deedId), c = d.kind === 'care' ? 'care' : d.kind === 'invest' ? 'invest' : 'useless'; if (t > 0) tin[c] = (tin[c] || 0) + t; else if (t < 0) tout[c] = (tout[c] || 0) - t; }
+    const catMax = Math.max(1, ...Object.values(tin), ...Object.values(tout));
+    const catRows = (m, cls) => Object.entries(m).sort((a, b) => b[1] - a[1]).map(([c, v]) => `
+      <div class="crow"><div class="cn"><span>${CAT[c]}</span><b>${cls === 'in' ? '+' : '−'}${t1(v)}</b></div><div class="cb"><i class="${cls}" style="width:${(v / catMax) * 100}%"></i></div></div>`).join('');
+    // time by deed
+    const tm = {}; offs.forEach(off => { const m = dayByDeed(off); Object.keys(m).forEach(k => { tm[k] = (tm[k] || 0) + m[k]; }); });
+    const tmIds = Object.keys(tm).sort((a, b) => tm[b] - tm[a]), tmTot = Math.max(1, sum(tm));
+    // chart
+    const cmax = Math.max(1, ...rows.flatMap(r => [r.earned, r.spent]));
+    const lbl = (r, i) => histRange === 7 ? new Date(r.d0).toLocaleDateString(undefined, { weekday: 'narrow' }) : (i % 5 === 0 || i === rows.length - 1 ? new Date(r.d0).getDate() : '');
+    // insights
+    const best = rows.length ? rows.reduce((a, r) => (r.earned - r.spent > a.earned - a.spent ? r : a), rows[0]) : null;
+    const streak = careStreak();
+    const shownDays = [...rows].reverse().slice(0, histMore ? rows.length : 7), shownNotes = S.notes.slice(0, histMore ? 40 : 4);
     return `
       ${head('History')}
-      <div class="grid2">
-        <div class="card"><div class="mid">${tk}${t1(avgE)}</div><div class="sub">Avg earned / day</div></div>
-        <div class="card"><div class="mid">${tk}${t1(avgS)}</div><div class="sub">Avg spent / day</div></div>
+      <div class="pills">${[7, 30].map(r => `<button class="pill ${histRange === r ? 'on' : ''}" data-range="${r}">${r} days</button>`).join('')}</div>
+      <div class="card hero">
+        <div class="lbl">Net Ticks · last ${histRange} days</div>
+        <div class="big">${tk}${net < 0 ? '−' : net > 0 ? '+' : ''}${t1(net)}</div>
+        <div class="sub">+${t1(earned)} earned · −${t1(spent)} spent</div>
       </div>
-      <div class="card"><b>Where your time went</b>
-        <div class="chart">${rows.map(r => `<div class="col"><div class="stack" title="${dur(r.s)}">${Object.entries(r.by).map(([id, s]) => `<i style="height:${Math.min(100, (s / DAY) * 100)}%;background:${deedOf(id).color}"></i>`).join('')}</div><small>${new Date(r.d0).toLocaleDateString(undefined, { weekday: 'narrow' })}</small></div>`).join('')}</div>
-        <div class="sub" style="margin-top:10px">Each bar is one day of 86,400 seconds. Empty space = time that expired unspent.</div></div>
+      <div class="grid2">
+        <div class="card"><div class="mid">${streak}<small> day${streak === 1 ? '' : 's'}</small></div><div class="sub">Care streak 🔥</div></div>
+        <div class="card"><div class="mid">${best && rows.length > 1 ? (best.earned - best.spent >= 0 ? '+' : '−') + t1(best.earned - best.spent) : '—'}</div><div class="sub">${best && rows.length > 1 ? 'Best day · ' + dayLabel(best.off, best.d0) : 'Best day'}</div></div>
+        <div class="card"><div class="mid">${tk}${t1(earned / n)}</div><div class="sub">Avg earned / day</div></div>
+        <div class="card"><div class="mid">${tk}${t1(spent / n)}</div><div class="sub">Avg spent / day</div></div>
+      </div>
+      <div class="card"><b>Earned vs spent</b>
+        <div class="dchart ${histRange === 30 ? 'tight' : ''}">${rows.map((r, i) => `<div class="dcol"><div class="up"><i style="height:${(r.earned / cmax) * 100}%" title="+${t1(r.earned)}"></i></div><div class="dn"><i style="height:${(r.spent / cmax) * 100}%" title="−${t1(r.spent)}"></i></div><small>${lbl(r, i)}</small></div>`).join('')}</div>
+        <div class="sub" style="margin-top:8px"><span class="lg up"></span>Earned <span class="lg dn" style="margin-left:12px"></span>Spent</div></div>
+      <h2>Where your Ticks went</h2>
+      <div class="card">${Object.keys(tin).length || Object.keys(tout).length ? `
+        ${Object.keys(tin).length ? `<div class="glbl" style="margin-top:0">Came in</div>${catRows(tin, 'in')}` : ''}
+        ${Object.keys(tout).length ? `<div class="glbl">Went out</div>${catRows(tout, 'out')}` : ''}` : '<div class="empty">Nothing yet. Once you earn or spend Ticks, the breakdown shows up here.</div>'}</div>
+      <h2>Where your time went</h2>
+      <div class="card">${tmIds.length ? `<div class="segbar">${tmIds.map(id => `<i style="width:${(tm[id] / tmTot) * 100}%;background:${deedOf(id).color}"></i>`).join('')}</div>` + tmIds.map(id => `
+        <div class="row"><i class="dot" style="background:${deedOf(id).color}"></i><div class="t"><b>${esc(deedOf(id).name)}</b></div><div class="r"><b>${dur(tm[id])}</b><span>${Math.round((tm[id] / tmTot) * 100)}% of tracked</span></div></div>`).join('') : '<div class="empty">No tracked time yet.</div>'}</div>
       <h2>Journal</h2>
-      <div class="card">${S.notes.length ? S.notes.slice(0, 40).map(noteHTML).join('') : '<div class="empty">No notes yet.<br>After you stop an investment or buy a goal you can write what you got from it.</div>'}</div>
+      <div class="card">${shownNotes.length ? shownNotes.map(noteHTML).join('') : '<div class="empty">No notes yet.<br>After you stop an investment or buy a goal you can write what you got from it.</div>'}</div>
       <h2>Day by day</h2>
-      <div class="card">${[...rows].reverse().map(r => `
-        <div class="dayrow"><div class="t" style="flex:1"><b>${r.off === 0 ? 'Today' : r.off === 1 ? 'Yesterday' : new Date(r.d0).toLocaleDateString(undefined, { weekday: 'long' })}</b>
-        <div class="sub">${r.valid ? `+${t1(r.earned)} earned · −${t1(r.spent)} spent` : 'Before you joined'}</div></div>
-        <div class="r"><b>${r.valid ? tk + signed(r.earned - r.spent) : '—'}</b></div></div>`).join('')}</div>`;
+      <div class="card">${shownDays.length ? shownDays.map(r => `
+        <div class="dayrow"><div class="t" style="flex:1"><b>${dayLabel(r.off, r.d0)}</b><div class="sub">+${t1(r.earned)} earned · −${t1(r.spent)} spent</div></div>
+        <div class="r"><b>${tk}${signed(r.earned - r.spent)}</b></div></div>`).join('') : '<div class="empty">Your days will appear here.</div>'}</div>
+      ${rows.length > 7 || S.notes.length > 4 ? `<button class="btn lime" data-act="histmore" style="border:1.5px solid var(--ink)">${histMore ? 'Show less' : 'Show more'}</button>` : ''}`;
   }
 
   // ---------- render ----------
@@ -784,6 +853,7 @@
       if (dd.kind === 'invest' && gated()) { flash('Health is too low to invest — refill a pillar first'); return; }
       S.active = { deedId: d.start, start: Date.now(), startVal: dd.kind === 'care' ? hBase(dd.pillar) : 0 }; save(); render(); return;
     }
+    if (d.range) { histRange = +d.range; render(); return; }
     if (d.buy) { buyGoal(d.buy, t); return; }
     if (d.editNote) { editNoteSheet(d.editNote); return; }
     if (d.addNote) { freeNoteSheet('invest', { deedId: d.addNote }, deedOf(d.addNote).name); return; }
@@ -793,6 +863,7 @@
     if (d.delGoal) { S.goals = S.goals.filter(g => g.id !== d.delGoal); save(); render(); return; }
     switch (d.act) {
       case 'stop': stopActive(); break;
+      case 'histmore': histMore = !histMore; render(); break;
       case 'about': aboutSheet(false); break;
       case 'adddeed': deedSheet(); break;
       case 'logpast': logPastSheet(); break;

@@ -59,9 +59,13 @@ Ticks come in **Tick (1)**, **Ten (10)** and **Hundred (100)** coins. The curren
 - **Deeds** – care / investment / useless / living deeds. Add, edit (✎) or delete; log time you already spent.
 - **Invest** – your portfolio and the What-if calculator.
 - **Goals** – rewards to save Ticks for. Edit (✎), then **Buy it** — with confetti and a chime (switch sounds off in the Ŧ. menu).
-- **History** – earned vs. spent, 7-day time chart, your **Journal** of notes, day by day.
+- **History** – switch between 7 and 30 days: net Ticks, care streak, best day, averages, an earned-vs-spent chart, *where your Ticks went* (care, dividends, investing, useless time, rewards), *where your time went*, your Journal and day by day.
 
 Colours: light lime `#C9F26B`, forest ink `#16210F`, tonal greens. Dark mode included.
+
+## Backup
+
+Your data lives in this browser. In the **Ŧ. menu** use **Export a backup** to download it as a JSON file and **Import a backup** to restore it (on another device, or after clearing site data).
 
 ## Run
 
