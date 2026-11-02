@@ -1,9 +1,7 @@
-// Cloud sync settings. Fill these two in from Supabase → Project Settings → API:
-//   SUPABASE_URL       e.g. https://abcdefghijkl.supabase.co
-//   SUPABASE_ANON_KEY  the "anon" / "publishable" key
+// Cloud sync settings for Tick (Supabase project "time-is-money-app").
 // The anon key is meant to be public — your data is protected by Row Level Security (see supabase/schema.sql).
 // NEVER put the "service_role" key here.
 window.TICK_CONFIG = {
-  SUPABASE_URL: '',
-  SUPABASE_ANON_KEY: '',
+  SUPABASE_URL: 'https://vdtxcwzvttbeeygdvrjd.supabase.co',
+  SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZkdHhjd3p2dHRiZWV5Z2R2cmpkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM2NDY2ODEsImV4cCI6MjEwOTIyMjY4MX0.hXQ8x8pwRPIj9lWCwnKxP4x3XQWuJL1544irYAeela0',
 };

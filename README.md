@@ -69,7 +69,11 @@ Tick works fully offline without an account. Sign in (the person icon, top right
 
 **How it syncs:** local-first. Every change is saved in the browser immediately, then mirrored to one row per user in the `tick_state` table about 2.5 seconds later, and re-checked every minute and whenever you come back to the tab. A revision number detects two devices writing at once; the states are **merged** (entries, notes and rewards are unioned, the newest edit of a deed or goal wins, deletes are remembered) so nothing is lost. Offline edits sync when you reconnect.
 
-### One-time setup (about 5 minutes)
+### Status for this repo
+
+The Supabase project **time-is-money-app** is already created, the `tick_state` table and its Row Level Security policies are applied (see `supabase/schema.sql`), and `config.js` holds its URL and public anon key. The only thing left to do in the dashboard is step 4 below (Site URL + Redirect URLs); Google sign-in (step 6) is optional.
+
+### Setup from scratch (about 5 minutes)
 
 1. **Create a project** at <https://supabase.com> (free tier is fine).
 2. **Create the table:** Dashboard → *SQL Editor* → *New query* → paste the contents of [`supabase/schema.sql`](supabase/schema.sql) → *Run*. It turns on Row Level Security so each user can only ever see their own row.
