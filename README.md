@@ -1,45 +1,58 @@
-# Tick — earn Ticks by working hard and looking after yourself, spend them on useless things
+# Tick — your Health is your income
 
 Three layers:
 
 | Layer | What it is | Rule |
 |---|---|---|
 | **Time** | 86,400 seconds a day | Equal for everyone. Expires at midnight. |
-| **Health** | Six pillars: **Sleep · Food · Move · Hygiene · Home · Family** | Each is a 0–100 gauge that drains through the day and refills when you look after it. |
-| **Ticks (Ŧ.)** | Your money | Hard deeds and care earn them, useless deeds spend them. Never expire. Can go negative. |
+| **Health** | Six pillars: **Sleep · Food · Move · Hygiene · Home · Family** | Gauges that drain through the day. Refilling them **earns Ticks**. |
+| **Ticks (Ŧ.)** | Your money | Earned by looking after yourself, spent on investments and useless things. Never expire. Can go negative. |
 
-## Health
+## Income: Health
 
-- Overall Health = 60% average of the pillars + 40% your weakest pillar, so you can't hide a neglected one.
-- **Gate:** below **40%** you can't start a hard deed, and a running one stops. Refill a pillar first.
-- Pillars drain at different speeds (Food fastest, Family slowest — see `PILLARS` in `app.js`).
+You earn Ticks by refilling what has drained: **Ticks = health points refilled × the pillar's price** (`PILLARS` in `app.js`).
+A pillar that is already full pays nothing, so nothing can be farmed. A day of proper upkeep earns roughly 230 Ticks.
 
-## Deed types
+- Overall Health = 60% average of the pillars + 40% your weakest pillar.
+- **Gate:** below **40%** you can't start an investment (and a running one stops). Look after yourself first.
 
-| Type | Examples | Effect |
-|---|---|---|
-| **Hard** | Deep work (+3/min) | earns Ticks (needs Health ≥ 40%) |
-| **Care** (timer) | Sleep, Workout, Cleaning, Family time | refills one pillar over time and earns a few Ticks |
-| **Care** (check-in) | Meal, Wash up | one tap: refills a pillar and pays Ticks in proportion to what it actually refilled — a full pillar pays nothing |
-| **Useless** | Scrolling (−1/min), Gaming (−2/min) | spends Ticks |
-| **Just living** | anything custom | uses time only |
+## Investments
+
+Things like *Learn to code* or *Deep work* **cost Ticks now** (e.g. 0.5/min) and **pay daily dividends later**.
+
+- **Skill** = hours invested, each hour fading **2% a day** without practice.
+- **Dividend** per day = skill × cost rate × 2 — so 1 hour at 0.5/min (30 Ticks) pays about 1 Tick a day.
+- Break-even takes roughly 30–45 days; keep practising and the dividends keep coming.
+- The **Invest** tab is your portfolio: dividend/day, invested vs. paid back, return %, break-even estimate, plus a **What if…?** box ("2h learn to code").
+
+## Useless deeds
+
+Scrolling, gaming… they just cost Ticks (1–5/min) and return nothing. Investments are deliberately cheaper than useless time.
 
 ## Debt
 
-Ticks can go below zero. While you are in debt, useless time costs **+50%** and the card turns dark.
-Earned Ticks repay the debt first, because it is simply a negative balance.
+Ticks can go below zero. In debt, **useless** time costs **+50%**. Earned Ticks repay the debt first.
 
-## Coins
+## Deed types
 
-Ticks come in **Tick (1)**, **Ten (10)** and **Hundred (100)** coins — one round family with an open timer ring.
-The currency sign is a struck T with a seconds pip (`brand/`).
+| Type | Examples | Ticks |
+|---|---|---|
+| **Care** (timer) | Sleep, Workout, Cleaning, Family time | earns, while a pillar has room |
+| **Care** (check-in) | Meal, Wash up | one tap; earns in proportion to what it refilled |
+| **Investment** | Deep work, Learn to code | costs now, pays dividends |
+| **Useless** | Scrolling, Gaming | costs |
+| **Just living** | anything custom | time only |
+
+## Coins & sign
+
+Ticks come in **Tick (1)**, **Ten (10)** and **Hundred (100)** coins. The currency sign is a struck T with a seconds pip (`brand/`).
 
 ## Screens
 
 - **Wallet** – Ticks balance, Health pillars, what are you doing, coin purse, time left, where today went.
-- **Deeds** – hard / care / useless / living deeds. Add, edit (✎) or delete; log time you already spent.
-- **Ask** – "2h scrolling", "100 ticks", "how is my health?".
-- **Goals** – guilt-free rewards with how much hard work they need. Edit (✎) or delete them. Reach the target, then tap **Buy it** to spend the Ticks — with confetti and a chime (switch sounds off in the Ŧ. menu); bought rewards are kept in a list.
+- **Deeds** – care / investment / useless / living deeds. Add, edit (✎) or delete; log time you already spent.
+- **Invest** – your portfolio and the What-if calculator.
+- **Goals** – rewards to save Ticks for. Edit (✎), then **Buy it** — with confetti and a chime (switch sounds off in the Ŧ. menu).
 - **History** – earned vs. spent, 7-day time chart, day by day.
 
 Colours: light lime `#C9F26B`, forest ink `#16210F`, tonal greens. Dark mode included.
@@ -52,10 +65,10 @@ No build step. Open `index.html`, or:
 python3 -m http.server 8000
 ```
 
-Data is stored in `localStorage` (`tick.v1`). Older saves are migrated automatically.
+Data is stored in `localStorage` (`tick.v1`). Older saves migrate automatically (the old "hard" deeds become investments).
 
 ## Roadmap
 
-- **Phase 2:** sleep mode (going-to-bed target, rewards for a steady bedtime), golden hours (×2 on hard deeds in windows you choose).
-- **Phase 3:** end-of-session notes ("what did you get done?"), coin / confetti reward moments, vibration on Android.
-- Later: accounts and sync, gifting Ticks, shared goals, AI for Ask.
+- Sleep mode (bedtime target, reward for a steady bedtime) and golden hours (bonus windows).
+- End-of-session notes ("what did you get done?") and more reward moments (coin roll-over).
+- Later: accounts and sync, gifting Ticks, shared goals, AI for the What-if box.
