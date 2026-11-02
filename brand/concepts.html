@@ -1,0 +1,32 @@
+<!doctype html><meta charset="utf-8"><title>Tick sign concepts</title>
+<style>
+body{margin:0;padding:28px;background:#F5F8EC;font-family:-apple-system,"Segoe UI",sans-serif;color:#16210F}
+h1{margin:0 0 20px;font-size:22px}
+.row{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+.c{background:#fff;border:1px solid #E4EAD5;border-radius:24px;padding:18px}
+.c h2{margin:0 0 4px;font-size:16px}.c p{margin:0 0 14px;color:#6B7560;font-size:13px}
+.big{display:flex;gap:12px}
+.tile{flex:1;aspect-ratio:1;border-radius:22px;display:grid;place-items:center}
+.lime{background:#C9F26B}.ink{background:#16210F}
+.tile svg{width:62%}
+.amt{margin-top:14px;display:flex;align-items:center;gap:6px;font-weight:800;font-size:34px;letter-spacing:-1px}
+.amt svg{width:.9em;height:.9em}
+.small{margin-top:8px;display:flex;gap:14px;align-items:center;color:#6B7560;font-size:14px}
+.small svg{width:18px;height:18px}
+</style>
+<h1>Tick currency sign — three concepts</h1>
+<div class="row" id="r"></div>
+<script>
+const S='stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"';
+const C=[
+ {n:'A · Hourglass sign',d:'Line glyph, like $ or €. Reads as "time" instantly.',
+  g:`<svg viewBox="0 0 64 64" ${S} stroke-width="6"><path d="M16 9H48M16 55H48"/><path d="M21 9C21 25 30 29 32 32C30 35 21 39 21 55M43 9C43 25 34 29 32 32C34 35 43 39 43 55"/></svg>`},
+ {n:'B · Sand coin',d:'Filled hourglass with sand — more illustrative, works as an app icon.',
+  g:`<svg viewBox="0 0 64 64" stroke-linejoin="round" stroke-linecap="round"><path d="M17 8H47C47 24 37 28 37 32C37 36 47 40 47 56H17C17 40 27 36 27 32C27 28 17 24 17 8Z" fill="currentColor" fill-opacity=".14" stroke="currentColor" stroke-width="4"/><path d="M24 14H40C39 20 35 22.5 32 24C29 22.5 25 20 24 14Z" fill="currentColor"/><path d="M32 30V44" stroke="currentColor" stroke-width="2.4"/><path d="M22 51H42C40 45 35.500 43 32 43C28.500 43 24 45 22 51Z" fill="currentColor"/></svg>`},
+ {n:'C · Struck T',d:'A letter-style sign, T with a strike (like Ŧ) and a seconds pip.',
+  g:`<svg viewBox="0 0 64 64" ${S} stroke-width="6"><path d="M14 14H50M32 14V52M21 31H43"/><circle cx="50" cy="48" r="3.200" fill="currentColor" stroke="none"/></svg>`}
+];
+document.getElementById('r').innerHTML=C.map(c=>`<div class="c"><h2>${c.n}</h2><p>${c.d}</p>
+<div class="big"><div class="tile lime" style="color:#16210F">${c.g}</div><div class="tile ink" style="color:#C9F26B">${c.g}</div></div>
+<div class="amt">${c.g}86,400</div><div class="small">${c.g}<span>tiny</span>${c.g.replace('<svg','<svg style="width:12px;height:12px"')}<span>micro</span></div></div>`).join('');
+</script>
