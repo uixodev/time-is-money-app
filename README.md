@@ -43,14 +43,17 @@ Ticks can go below zero. In debt, **useless** time costs **+50%**. Earned Ticks 
 | **Useless** | Scrolling, Gaming | costs |
 | **Just living** | anything custom | time only |
 
-## The live timer
+## The live timer — three looks
 
-Starting a deed opens a dial instead of a plain clock:
+While a deed runs you see one of three timer looks. Switch any time with **Look ⟳** on the running timer, or in the **Ŧ. menu → Timer look**; the choice is remembered (and synced).
 
-- A **60-second sweep ring** and a marker that circles the dial in step with the real clock, plus a little pulse on every second.
-- A **vessel** in the middle that shows what the session does: for **care** deeds a pillar's water level rises as it refills; for **useless** deeds your Ticks drain away; for **investments** a plant grows over ~45 minutes (leaves, then a coin on top).
-- **Coins float up** while you earn and **fall** while you spend.
-- Honours the system "reduce motion" setting (animations and coins are switched off).
+| Look | What you see |
+|---|---|
+| **Big number** *(default)* | Huge digits that roll as they change, a calm glow, a thin line that fills every minute, and your session Ticks underneath. |
+| **Coin stack** | A coin drops onto a growing pile for every whole Tick you earn (lime) or spend (grey-green / forest). |
+| **Seconds grid** | 60 dots light up second by second and ripple at each new minute; every finished minute adds a bead (one hour = 60 beads). |
+
+[`timer-options.html`](timer-options.html) shows all three running side by side (earning / investing / wasting). The looks live in `timers.js` and honour the system *reduce motion* setting.
 
 ## Notes & Journal
 

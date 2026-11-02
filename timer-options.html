@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#C9F26B">
+<title>Pick a timer look — Tick</title>
+<link rel="icon" type="image/svg+xml" href="icon.svg">
+<link rel="stylesheet" href="styles.css?v=19">
+<style>
+  body{height:auto;padding:24px 16px 48px}
+  .wrap{max-width:1120px;margin:0 auto}
+  h1{font-size:34px;margin:0 0 6px}
+  .lead{color:var(--muted);margin:0 0 18px;max-width:640px;line-height:1.45}
+  .pills{margin-bottom:22px}
+  .grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
+  .opt{margin:0;padding:18px 18px 14px}
+  .opt h2{margin:0;font-size:20px}
+  .opt .blurb{color:var(--muted);font-size:14px;margin:4px 0 6px;min-height:40px}
+  .tag{display:inline-block;width:30px;height:30px;line-height:30px;text-align:center;border-radius:50%;background:var(--btn-bg);color:var(--btn-fg);font-weight:800;margin-right:8px}
+  .pulse{margin-right:6px}
+  .running{color:var(--muted);font-size:13px;margin:0 0 8px;font-weight:600}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Pick a timer look</h1>
+  <p class="lead">Three designs for the screen you see while a deed is running. They are live — watch them for a few seconds, flip between earning, investing and wasting time, then tell me <b>A</b>, <b>B</b> or <b>C</b>. You can also try each one inside the app (tap <b>Look ⟳</b> on a running timer).</p>
+  <div class="pills" id="kinds">
+    <button class="pill on" data-k="care">Earning · Workout</button>
+    <button class="pill" data-k="invest">Investing · Learn to code</button>
+    <button class="pill" data-k="useless">Wasting · Scrolling</button>
+  </div>
+  <div class="grid3" id="grid"></div>
+</div>
+<script src="timers.js?v=19"></script>
+<script>
+(function () {
+  const KINDS = {
+    care: { name: 'Workout', rate: 1.2, verb: 'Looking after', pillar: { name: 'Move', start: 40, pts: 1.2 } },
+    invest: { name: 'Learn to code', rate: -0.5, verb: 'Investing in' },
+    useless: { name: 'Scrolling', rate: -1, verb: 'Spending on' },
+  };
+  const LETTERS = ['A', 'B', 'C'];
+  let kind = 'care', t0 = Date.now() - (6 * 60 + 41) * 1000;     // pretend it started 6m41s ago
+  const grid = document.getElementById('grid');
+  const reduced = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const ctx = () => {
+    const k = KINDS[kind], el = (Date.now() - t0) / 1000;
+    return { kind, elapsed: el, ticks: k.rate * el / 60, reduced, pillar: k.pillar ? { name: k.pillar.name, pct: Math.min(100, k.pillar.start + k.pillar.pts * el / 60) } : null };
+  };
+  function build() {
+    const k = KINDS[kind];
+    grid.innerHTML = TickTimers.STYLES.map((s, i) => `
+      <div class="card opt" data-style="${s.id}">
+        <h2><span class="tag">${LETTERS[i]}</span>${s.name}</h2>
+        <div class="blurb">${s.blurb}</div>
+        <div class="running"><span class="pulse"></span>${k.verb} <b>${k.name}</b></div>
+        <div class="stage-host">${TickTimers.render(s.id, ctx())}</div>
+      </div>`).join('');
+  }
+  function tick() { const c = ctx(); grid.querySelectorAll('.opt').forEach(card => TickTimers.update(card.dataset.style, c, card.querySelector('.tt'))); }
+  document.getElementById('kinds').onclick = e => {
+    const b = e.target.closest('[data-k]'); if (!b) return;
+    kind = b.dataset.k; t0 = Date.now() - (6 * 60 + 41) * 1000;
+    document.querySelectorAll('#kinds .pill').forEach(x => x.classList.toggle('on', x === b)); build(); tick();
+  };
+  build(); tick(); setInterval(tick, 250);
+})();
+</script>
+</body>
+</html>

@@ -5,7 +5,7 @@
 (() => {
   'use strict';
   const KEY = 'tick.v1';
-  const VERSION = 'v18 · live timer dial & care notes';   // bump with the ?v= number in index.html so browsers fetch fresh files
+  const VERSION = 'v19 · timer looks';   // bump with the ?v= number in index.html so browsers fetch fresh files
   const DAY = 86400;
   const $ = (s, el = document) => el.querySelector(s);
   // one tonal green family (+ ink) so every deed colour belongs to the brand
@@ -53,6 +53,7 @@
     goals: [],     // {id, name, target (Ticks)}
     bought: [],    // {id, name, cost, ts} rewards you've bought
     sound: true,   // celebration sounds
+    timerStyle: 'number', // which look the running timer uses: number | coins | grid
     tomb: [],      // ids of things deleted on any device, so deletes survive syncing
     lastStopped: 0, // start time of the most recently stopped session (stops a finished session coming back from another device)
     notes: [],     // journal: {id, ts, kind:'invest'|'reward', deedId?, refId?, title, line, text, rating}
@@ -442,11 +443,13 @@
       <div class="sub" style="margin-top:8px"><b>Investments</b> (learning, projects) cost Ticks now and <b>pay daily dividends</b> later. <b>Useless</b> deeds just cost — and cost 50% more if you're in debt.</div>
       ${coinList()}
       <label class="switch"><input type="checkbox" id="snd" ${S.sound ? 'checked' : ''}><span>Celebration sounds</span></label>
+      ${window.TickTimers ? `<label class="l" style="margin-top:14px">Timer look</label><div class="pills" style="margin:8px 0 0">${TickTimers.STYLES.map(x => `<button class="pill ${timerStyle() === x.id ? 'on' : ''}" data-ts="${x.id}">${x.name}</button>`).join('')}</div>` : ''}
       <button class="btn" id="ok">${first ? `Start with ${S.gift} Ticks` : 'Got it'}</button>
       ${first ? '<button class="link" id="signin">Already have an account? Sign in</button>' : '<button class="link" id="reset">Reset all data</button>'}
       ${first ? '' : '<button class="link" id="bk">Backup &amp; restore</button>'}
       <div class="sub" style="text-align:center;margin-top:10px;font-size:12px">Tick ${VERSION}</div>`, w => {
       $('#snd', w).onchange = e => { S.sound = e.target.checked; save(); if (S.sound) chime(); };
+      w.querySelectorAll('[data-ts]').forEach(b => { b.onclick = () => { S.timerStyle = b.dataset.ts; save(); w.querySelectorAll('[data-ts]').forEach(x => x.classList.toggle('on', x === b)); render(); tick(); }; });
       $('#ok', w).onclick = () => { S.onboarded = true; save(); closeSheet(); render(); };
       const si = $('#signin', w); if (si) si.onclick = () => { S.onboarded = true; save(); closeSheet(); accountSheet(); };
       const bk = $('#bk', w); if (bk) bk.onclick = () => { closeSheet(); backupSheet(); };
@@ -480,6 +483,7 @@
       .map(g => ({ id: g.id, name: TXT(g.name, 40), target: g.target, ...(N(g.created) ? { created: g.created } : {}), ...(N(g.mod) ? { mod: g.mod } : {}) }));
     out.bought = A(d.bought).filter(b => b && ID(b.id) && T(b.name) && N(b.cost) && N(b.ts)).map(b => ({ id: b.id, name: TXT(b.name, 40), cost: b.cost, ts: b.ts }));
     out.tomb = A(d.tomb).filter(ID);
+    if (['number', 'coins', 'grid'].includes(d.timerStyle)) out.timerStyle = d.timerStyle;
     out.chat = A(d.chat).filter(c => c && (c.from === 'me' || c.from === 'bot') && T(c.text)).map(c => ({ from: c.from, text: TXT(c.text, 600) })).slice(-40);
     if (d.health && typeof d.health === 'object') { out.health = {}; Object.keys(PILLARS).forEach(k => { const h = d.health[k]; if (h && N(h.v) && N(h.t)) out.health[k] = { v: clamp(h.v, 0, 100), t: h.t }; }); }
     if (d.active && ID(d.active.deedId) && N(d.active.start)) out.active = { deedId: d.active.deedId, start: d.active.start, startVal: N(d.active.startVal) ? d.active.startVal : 0, ...(N(d.active.startBal) ? { startBal: d.active.startBal } : {}) };
@@ -562,62 +566,19 @@
     return `<div class="glbl">${title}</div><div class="deeds">${ds.map(deedBtn).join('')}</div>`;
   };
 
-  // ---------- The live timer dial ----------
-  // A 60-second sweep ring and a spinning marker (CSS, in sync with the real clock), and a "vessel" in the middle that shows what
-  // the session does: a pillar fills up while you look after yourself, your Ticks drain while you waste time, a plant grows while
-  // you invest. Coins float up when you earn and fall when you spend.
+  // ---------- Timer looks (see timers.js) ----------
   const REDUCED = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
-  const CIRC = 2 * Math.PI * 104;
-  let lastSec = -1, lastSpawn = 0;
-  const plantSVG = () => `<g id="plant" style="transform-origin:120px 196px;transform:scale(.25)">
-      <ellipse cx="120" cy="196" rx="36" ry="7" fill="#6FBF3B" opacity=".35"/>
-      <g class="sway"><path d="M120 196 C120 176 118 160 120 140" stroke="#2F6B2A" stroke-width="5" fill="none" stroke-linecap="round"/>
-      <path class="leaf l1" d="M120 178 C102 176 94 164 96 156 C110 156 120 166 120 178Z" fill="#6FBF3B"/>
-      <path class="leaf l2" d="M120 168 C138 166 146 154 144 146 C130 146 120 156 120 168Z" fill="#6FBF3B"/>
-      <path class="leaf l3" d="M120 152 C104 150 98 140 100 132 C112 132 120 140 120 152Z" fill="#2F6B2A"/>
-      <g class="fruit"><circle cx="120" cy="132" r="10" fill="#C9F26B" stroke="#16210F" stroke-width="3"/><circle cx="120" cy="132" r="2.6" fill="#16210F"/></g></g></g>`;
+  const TIMER_STYLES = ['number', 'coins', 'grid'];
+  const timerStyle = () => (TIMER_STYLES.includes(S.timerStyle) ? S.timerStyle : 'number');
+  const timerName = () => { const t = window.TickTimers && TickTimers.STYLES.find(x => x.id === timerStyle()); return t ? t.name : 'Big number'; };
+  const timerCtx = (d, el, t) => ({ kind: d.kind, elapsed: el, ticks: t, reduced: REDUCED, signHTML: tk, pillar: d.kind === 'care' && d.mode === 'timer' ? { name: PILLARS[d.pillar].name, pct: pv(d.pillar) } : null });
   function stageHTML(d) {
-    const el = activeElapsed(), delay = `animation-delay:-${(el % 60).toFixed(2)}s`, waves = 'M0 10 Q20 0 40 10 T80 10 T120 10 T160 10 T200 10 T240 10 T280 10 T320 10 V400 H0Z';
-    const vessel = d.kind !== 'invest', col = d.kind === 'useless' ? '#2F6B2A' : '#6FBF3B';
-    return `<div class="stage k-${d.kind}" id="stage">
-      <svg viewBox="0 0 240 240" class="dial" aria-hidden="true">
-        <defs><clipPath id="vclip"><circle cx="120" cy="120" r="78"/></clipPath></defs>
-        <circle cx="120" cy="120" r="104" fill="none" stroke="var(--line)" stroke-width="10"/>
-        <circle cx="120" cy="120" r="78" fill="var(--card)"/>
-        ${vessel ? `<g clip-path="url(#vclip)"><g id="liquid" style="transform:translateY(110px)"><g class="wave w1"><path d="${waves}" fill="${col}" opacity=".38"/></g><g class="wave w2"><path d="${waves}" fill="${col}" opacity=".26" transform="translate(-30 5)"/></g></g></g>` : plantSVG()}
-        ${[...Array(12)].map((_, i) => `<line x1="120" y1="13" x2="120" y2="${i % 3 ? 22 : 27}" stroke="var(--muted)" stroke-width="${i % 3 ? 2 : 3}" stroke-linecap="round" transform="rotate(${i * 30} 120 120)" opacity=".5"/>`).join('')}
-        <g transform="rotate(-90 120 120)"><circle class="sweep" cx="120" cy="120" r="104" fill="none" stroke="${d.kind === 'useless' ? 'var(--ink)' : '#6FBF3B'}" stroke-width="10" stroke-linecap="round" stroke-dasharray="${CIRC.toFixed(1)}" style="${delay}"/></g>
-        <g class="hand" style="${delay}"><circle cx="120" cy="16" r="9" fill="#C9F26B" stroke="#16210F" stroke-width="3"/></g>
-      </svg>
-      <div class="dtext"><div class="dname">${esc(d.name)}</div><div class="dclock live" id="clock">${clock(el)}</div><div class="dsub live" id="sess"></div></div>
-      <div class="pts" id="pts"></div></div>`;
+    const el = activeElapsed();
+    if (!window.TickTimers) return `<div id="stage"><div class="mid live" id="clock">${clock(el)}</div></div>`;   // timers.js failed to load: plain clock
+    return `<div id="stage">${TickTimers.render(timerStyle(), timerCtx(d, el, ticksFor(S.active, el)))}</div>`;
   }
-  function spawnCoin(dir) {
-    const box = $('#pts'); if (!box || box.children.length > 6) return;
-    const e = document.createElement('span'); e.className = 'pt ' + dir;
-    e.style.left = (62 + Math.random() * 116) + 'px'; e.style.top = (dir === 'up' ? 150 + Math.random() * 24 : 26 + Math.random() * 22) + 'px';
-    e.innerHTML = signSVG('', 22); e.addEventListener('animationend', () => e.remove()); box.appendChild(e);
-  }
-  function animateStage(d, el) {
-    if (!$('#stage')) return;
-    const sec = Math.floor(el), c = $('#clock');
-    if (c && sec !== lastSec) { lastSec = sec; c.classList.remove('bump'); void c.offsetWidth; c.classList.add('bump'); }          // tiny pulse every second
-    const lq = $('#liquid');
-    if (lq) {
-      let L = 0.5;
-      if (d.kind === 'care') L = pv(d.pillar) / 100;                                                                                 // the pillar fills up
-      else if (d.kind === 'useless') L = clamp(balance() / Math.max(1, S.active.startBal || balance() || 1), 0, 1);                  // your Ticks drain away
-      lq.style.transform = `translateY(${198 - L * 156 - 10}px)`;
-    }
-    const pl = $('#plant');
-    if (pl) {                                                                                                                       // the plant grows over ~45 minutes
-      const pr = clamp(el / 60 / 45, 0, 1), g = 0.25 + 0.6 * pr; pl.style.transform = `scale(${g})`;          // never grows tall enough to touch the clock
-      ['l1', 'l2', 'l3'].forEach((k, i) => pl.querySelector('.' + k).classList.toggle('on', pr > [0.3, 0.55, 0.8][i]));
-      pl.querySelector('.fruit').classList.toggle('on', pr >= 1);
-    }
-    const earning = d.kind === 'care' && (d.mode === 'tap' || pv(d.pillar) < 99.5);
-    if (!REDUCED && d.kind !== 'neutral' && Date.now() - lastSpawn > 1300 && (d.kind !== 'care' || earning)) { lastSpawn = Date.now(); spawnCoin(d.kind === 'care' ? 'up' : 'down'); }
-  }
+  const lookBtn = () => `<button class="chip" style="margin:0;white-space:nowrap" data-act="cyclestyle" aria-label="Change timer look">Look: ${esc(timerName())} ⟳</button>`;
+  function cycleStyle() { S.timerStyle = TIMER_STYLES[(TIMER_STYLES.indexOf(timerStyle()) + 1) % TIMER_STYLES.length]; save(); render(); tick(); }
 
   function viewWallet() {
     const bal = balance(), { earned, spent } = dayEarnSpend(0), left = timeLeft(), debt = bal < -0.004, hs = healthScore();
@@ -636,7 +597,7 @@
       </div>
       <div class="card">
         ${S.active ? (() => { const d = deedOf(S.active.deedId); return `
-          <div class="sub"><span class="pulse"></span>${{ invest: 'Investing in', care: 'Looking after', useless: 'Spending on', neutral: 'Doing' }[d.kind]} <b>${esc(d.name)}</b> · ${rateLbl(d)}</div>
+          <div class="sub" style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span><span class="pulse"></span>${{ invest: 'Investing in', care: 'Looking after', useless: 'Spending on', neutral: 'Doing' }[d.kind]} <b>${esc(d.name)}</b> · ${rateLbl(d)}</span>${lookBtn()}</div>
           ${stageHTML(d)}
           <button class="btn stop" data-act="stop">Stop</button>`; })() : `
           <div class="mid">What are you doing?</div>
@@ -724,7 +685,7 @@
         <div class="card"><div class="mid">${tk}${num(spent)}</div><div class="sub">Invested so far</div></div>
         <div class="card"><div class="mid">${tk}${num(returned)}</div><div class="sub">Paid back</div></div>
       </div>
-      ${S.active && deedOf(S.active.deedId).kind === 'invest' ? `<div class="card"><div class="sub"><span class="pulse"></span>Investing in <b>${esc(deedOf(S.active.deedId).name)}</b></div>${stageHTML(deedOf(S.active.deedId))}<button class="btn stop" data-act="stop">Stop</button></div>` : ''}
+      ${S.active && deedOf(S.active.deedId).kind === 'invest' ? `<div class="card"><div class="sub" style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span><span class="pulse"></span>Investing in <b>${esc(deedOf(S.active.deedId).name)}</b></span>${lookBtn()}</div>${stageHTML(deedOf(S.active.deedId))}<button class="btn stop" data-act="stop">Stop</button></div>` : ''}
       ${st.length ? st.map(x => `
         <div class="card">
           <div style="display:flex;justify-content:space-between;align-items:center"><div class="mid">${esc(x.d.name)}</div><button class="x edit" data-edit="${x.d.id}" aria-label="Edit ${esc(x.d.name)}">✎</button></div>
@@ -866,10 +827,8 @@
     ['hundred', 'ten', 'tick'].forEach(k => { const n = Math.floor(b / COINS[k].value); b -= n * COINS[k].value; const e = $(`[data-coin="${k}"]`); if (e) e.textContent = n; });
     if (S.active) {
       const d = deedOf(S.active.deedId), el = activeElapsed(), t = ticksFor(S.active, el);
-      const c = $('#clock'); if (c) c.textContent = clock(el);
-      const s = $('#sess');
-      if (s) s.innerHTML = d.kind === 'neutral' ? 'time only' : `${t >= 0 ? '+' : '−'}${tk}${Math.abs(t).toFixed(2)}` + (d.kind === 'care' && d.mode === 'timer' ? `<br>${PILLARS[d.pillar].name} ${Math.round(pv(d.pillar))}%` : '');
-      animateStage(d, el);
+      const stg = $('#stage');
+      if (stg) { if (window.TickTimers) TickTimers.update(timerStyle(), timerCtx(d, el, t), stg.firstElementChild); else { const c = $('#clock'); if (c) c.textContent = clock(el); } }
       const wh = $('#where'); if (wh) wh.innerHTML = whereHTML();
     }
   }
@@ -1027,6 +986,7 @@
       case 'about': aboutSheet(false); break;
       case 'account': accountSheet(); break;
       case 'backup': backupSheet(); break;
+      case 'cyclestyle': cycleStyle(); break;
       case 'writenote': writeNoteSheet(); break;
       case 'adddeed': deedSheet(); break;
       case 'logpast': logPastSheet(); break;
