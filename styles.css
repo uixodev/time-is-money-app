@@ -219,3 +219,35 @@ textarea.field{min-height:96px;resize:vertical;line-height:1.4}
 .icon-btn.acct.syncing::after{animation:p .8s infinite}
 .btn.ghost{background:transparent;border:1.5px solid var(--ink);color:var(--ink)}
 .btn[disabled]{cursor:not-allowed}
+
+/* ---- live timer dial ---- */
+.stage{position:relative;width:240px;height:240px;margin:12px auto 6px}
+.dial{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.sweep{animation:sweep 60s linear infinite}
+@keyframes sweep{from{stroke-dashoffset:653.5}to{stroke-dashoffset:0}}
+.hand{transform-origin:120px 120px;animation:spin 60s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+#liquid{transition:transform .9s ease}
+.wave{animation:wv 2.6s linear infinite}.wave.w2{animation-duration:3.9s;animation-direction:reverse}
+@keyframes wv{to{transform:translateX(-80px)}}
+#plant{transition:transform 1s ease}
+.sway{transform-origin:120px 196px;animation:sway 3.4s ease-in-out infinite alternate}
+@keyframes sway{from{transform:rotate(-3deg)}to{transform:rotate(3deg)}}
+.leaf,.fruit{opacity:0;transition:opacity .7s}.leaf.on,.fruit.on{opacity:1}
+.fruit.on{animation:bob 1.6s ease-in-out infinite alternate}
+@keyframes bob{from{transform:translateY(0)}to{transform:translateY(-3px)}}
+.dtext{position:absolute;left:50%;top:46px;width:136px;margin-left:-68px;text-align:center}
+.dname{font-size:13px;font-weight:700;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dclock{font-size:32px;font-weight:800;letter-spacing:-1px;line-height:1.15;font-variant-numeric:tabular-nums}
+.dclock.bump{animation:bump .32s ease}
+@keyframes bump{40%{transform:scale(1.07)}}
+.dsub{font-size:12px;font-weight:700;color:var(--muted);line-height:1.25}
+.pts{position:absolute;inset:0;pointer-events:none}
+.pt{position:absolute;width:22px;height:22px;color:var(--ink);animation:fup 2.6s ease-out forwards}
+.pt svg{width:100%;height:100%}
+.pt.down{animation-name:fdn}
+@keyframes fup{0%{transform:translateY(0) scale(.6);opacity:0}15%{opacity:1}100%{transform:translateY(-125px) scale(1);opacity:0}}
+@keyframes fdn{0%{transform:translateY(0) scale(1);opacity:0}15%{opacity:1}100%{transform:translateY(125px) rotate(35deg) scale(.7);opacity:0}}
+.k-useless .dclock{opacity:.92}
+.toastbtn{margin-left:12px;background:transparent;border:1.5px solid currentColor;color:inherit;border-radius:999px;padding:4px 11px;font-weight:800;font-size:13px}
+@media (prefers-reduced-motion: reduce){.sweep,.hand,.wave,.sway,.fruit.on,.dclock.bump{animation:none}.pt{display:none}#liquid,#plant{transition:none}}

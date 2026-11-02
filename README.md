@@ -43,8 +43,20 @@ Ticks can go below zero. In debt, **useless** time costs **+50%**. Earned Ticks 
 | **Useless** | Scrolling, Gaming | costs |
 | **Just living** | anything custom | time only |
 
+## The live timer
+
+Starting a deed opens a dial instead of a plain clock:
+
+- A **60-second sweep ring** and a marker that circles the dial in step with the real clock, plus a little pulse on every second.
+- A **vessel** in the middle that shows what the session does: for **care** deeds a pillar's water level rises as it refills; for **useless** deeds your Ticks drain away; for **investments** a plant grows over ~45 minutes (leaves, then a coin on top).
+- **Coins float up** while you earn and **fall** while you spend.
+- Honours the system "reduce motion" setting (animations and coins are switched off).
+
 ## Notes & Journal
 
+- **Stop a care timer** (sleep, workout, cleaning, family time…) → a **Nicely done** pop-up shows time, Ticks earned and how far the pillar rose, then asks *"How did it go?"* with an optional 1–5 *how do you feel* rating.
+- **Quick check-ins** (meal, wash up) → the confirmation toast has a **+ note** button.
+- **Write a note any time** from the Journal (History tab): pick a deed or *General*.
 - **Stop an investment** (10 seconds or longer) → a **Session done** pop-up shows time invested, Ticks spent, skill added and how much your daily dividend grew, then asks *"What did you get from this?"* with an optional 1–5 focus rating.
 - **Buy a goal** → an **Enjoy it** pop-up shows what it cost, what you have left and how long it took, then asks *"How was it? Was it worth it?"*.
 - Notes are kept in the **Journal** (History tab). Tap one to edit or delete it. The latest note also shows on its investment card, and reward notes show under *Rewards you've bought*. Add a note any time with **+ note**.

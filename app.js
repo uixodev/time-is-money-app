@@ -5,7 +5,7 @@
 (() => {
   'use strict';
   const KEY = 'tick.v1';
-  const VERSION = 'v17 · backup & restore';   // bump with the ?v= number in index.html so browsers fetch fresh files
+  const VERSION = 'v18 · live timer dial & care notes';   // bump with the ?v= number in index.html so browsers fetch fresh files
   const DAY = 86400;
   const $ = (s, el = document) => el.querySelector(s);
   // one tonal green family (+ ink) so every deed colour belongs to the brand
@@ -264,9 +264,10 @@
       t = b;
     }
   }
-  function flash(msg) {
-    const e = document.createElement('div'); e.className = 'toast'; e.textContent = msg; $('#app').appendChild(e);
-    setTimeout(() => e.remove(), 2300);
+  function flash(msg, action) {
+    const e = document.createElement('div'); e.className = 'toast'; e.textContent = msg;
+    if (action) { const b = document.createElement('button'); b.className = 'toastbtn'; b.textContent = action.label; b.onclick = () => { e.remove(); action.fn(); }; e.appendChild(b); }
+    $('#app').appendChild(e); setTimeout(() => e.remove(), action ? 5000 : 2300);
   }
   function tapCare(id) {
     const d = deedOf(id), gain = Math.min(d.pts, 100 - hBase(d.pillar));
@@ -274,7 +275,7 @@
     const ticks = gain * PILLARS[d.pillar].price;   // pays in proportion to what it actually refilled
     refill(d.pillar, gain);
     S.entries.push({ id: uid(), deedId: id, ts: Date.now(), secs: 0, ticks });
-    save(); flash(`${PILLARS[d.pillar].name} +${nf(gain)}% · +${t1(ticks)} Ticks`); render();
+    save(); flash(`${PILLARS[d.pillar].name} +${nf(gain)}% · +${t1(ticks)} Ticks`, { label: '+ note', fn: () => freeNoteSheet('care', { deedId: id }, d.name) }); render();
   }
 
   // ---------- celebration: confetti + chime ----------
@@ -338,6 +339,7 @@
     let rating = o.rating || 0;
     openSheet(`<h3>${o.heading}</h3>${o.sub ? `<div class="sub">${o.sub}</div>` : ''}
       ${o.stats || ''}
+      ${o.pick || ''}
       <label class="l">${o.noteLabel || 'Your note'}</label>
       <textarea class="field" id="nt" rows="4" maxlength="600" placeholder="${esc(o.placeholder || '')}">${esc(o.text || '')}</textarea>
       <label class="l">${o.ratingLabel || 'How did it go?'} (optional)</label>
@@ -345,7 +347,7 @@
       <button class="btn" id="ok">${o.saveLabel || 'Save note'}</button>
       <button class="link" id="skip">${o.onDelete ? 'Delete this note' : 'Skip'}</button>`, w => {
       $('#rt', w).onclick = e => { const b = e.target.closest('.rbtn'); if (!b) return; const n = +b.dataset.r; rating = rating === n ? 0 : n; w.querySelectorAll('.rbtn').forEach(x => x.classList.toggle('on', +x.dataset.r === rating)); };
-      $('#ok', w).onclick = () => { const text = $('#nt', w).value.trim(); closeSheet(); if (text || rating) o.onSave(text, rating); };
+      $('#ok', w).onclick = () => { const text = $('#nt', w).value.trim(), pick = $('#npick', w) ? $('#npick', w).value : undefined; closeSheet(); if (text || rating) o.onSave(text, rating, pick); };   // read the form BEFORE the sheet closes
       $('#skip', w).onclick = () => { if (o.onDelete) { if (confirm('Delete this note?')) { closeSheet(); o.onDelete(); } } else closeSheet(); };
       $('#nt', w).focus({ preventScroll: true });
     });
@@ -372,6 +374,24 @@
   }
   function freeNoteSheet(kind, ref, title) {
     noteSheet({ heading: 'Add a note', sub: `<b>${esc(title)}</b>`, noteLabel: 'What happened?', placeholder: 'Write anything worth remembering…', onSave: (text, rating) => { addNote({ kind, ...ref, title, line: '', text, rating }); flash('Saved to your Journal'); render(); } });
+  }
+  function writeNoteSheet() {
+    const opts = S.deeds.filter(x => x.kind !== 'neutral').map(x => `<option value="${x.id}">${esc(x.name)}</option>`).join('');
+    noteSheet({
+      heading: 'Write a note', sub: 'For your Journal — about anything.',
+      pick: `<label class="l">About</label><select class="field sel" id="npick"><option value="">General</option>${opts}</select>`,
+      noteLabel: 'What happened?', placeholder: 'Write anything worth remembering…', ratingLabel: 'How did it feel?',
+      onSave: (text, rating, pick) => { const d = pick ? deedOf(pick) : null; addNote({ kind: d ? (d.kind === 'care' ? 'care' : 'invest') : 'general', ...(d ? { deedId: d.id } : {}), title: d ? d.name : 'Journal', line: '', text, rating }); flash('Saved to your Journal'); render(); },
+    });
+  }
+  function careSummary(d, secs, earned, before, after) {
+    const p = PILLARS[d.pillar];
+    noteSheet({
+      heading: 'Nicely done 💚', sub: `<b>${esc(d.name)}</b> · ${p.name} ${Math.round(before)}% → ${Math.round(after)}%`,
+      stats: `<div class="stats">${statBox(dur(secs), 'time')}${statBox(tk + '+' + t1(earned), 'Ticks earned')}${statBox(Math.round(after) + '%', p.name)}${statBox(Math.round(healthScore()) + '%', 'overall Health')}</div>`,
+      noteLabel: 'How did it go?', placeholder: 'How do you feel? Anything worth remembering?', ratingLabel: 'How do you feel?',
+      onSave: (text, rating) => { addNote({ kind: 'care', deedId: d.id, title: d.name, line: `${dur(secs)} · +${t1(earned)} Ticks · ${p.name} ${Math.round(before)}→${Math.round(after)}%`, text, rating }); flash('Saved to your Journal'); render(); },
+    });
   }
   function editNoteSheet(id) {
     const n = S.notes.find(x => x.id === id); if (!n) return;
@@ -454,7 +474,7 @@
     out.entries = A(d.entries).filter(e => e && ID(e.id) && ID(e.deedId) && N(e.ts) && N(e.secs) && N(e.ticks))
       .map(e => ({ id: e.id, deedId: e.deedId, ts: e.ts, secs: e.secs, ticks: e.ticks, ...(e.div ? { div: true } : {}) }));
     out.notes = A(d.notes).filter(n => n && ID(n.id) && T(n.title) && N(n.ts))
-      .map(n => ({ id: n.id, ts: n.ts, kind: n.kind === 'reward' ? 'reward' : 'invest', ...(ID(n.deedId) ? { deedId: n.deedId } : {}), ...(ID(n.refId) ? { refId: n.refId } : {}),
+      .map(n => ({ id: n.id, ts: n.ts, kind: ['reward', 'care', 'general'].includes(n.kind) ? n.kind : 'invest', ...(ID(n.deedId) ? { deedId: n.deedId } : {}), ...(ID(n.refId) ? { refId: n.refId } : {}),
         title: TXT(n.title, 80), line: TXT(n.line, 160), text: TXT(n.text, 600), rating: Number.isInteger(n.rating) && n.rating >= 1 && n.rating <= 5 ? n.rating : 0, ...(N(n.edited) ? { edited: n.edited } : {}) }));
     out.goals = A(d.goals).filter(g => g && ID(g.id) && T(g.name) && N(g.target) && g.target > 0)
       .map(g => ({ id: g.id, name: TXT(g.name, 40), target: g.target, ...(N(g.created) ? { created: g.created } : {}), ...(N(g.mod) ? { mod: g.mod } : {}) }));
@@ -462,7 +482,7 @@
     out.tomb = A(d.tomb).filter(ID);
     out.chat = A(d.chat).filter(c => c && (c.from === 'me' || c.from === 'bot') && T(c.text)).map(c => ({ from: c.from, text: TXT(c.text, 600) })).slice(-40);
     if (d.health && typeof d.health === 'object') { out.health = {}; Object.keys(PILLARS).forEach(k => { const h = d.health[k]; if (h && N(h.v) && N(h.t)) out.health[k] = { v: clamp(h.v, 0, 100), t: h.t }; }); }
-    if (d.active && ID(d.active.deedId) && N(d.active.start)) out.active = { deedId: d.active.deedId, start: d.active.start, startVal: N(d.active.startVal) ? d.active.startVal : 0 };
+    if (d.active && ID(d.active.deedId) && N(d.active.start)) out.active = { deedId: d.active.deedId, start: d.active.start, startVal: N(d.active.startVal) ? d.active.startVal : 0, ...(N(d.active.startBal) ? { startBal: d.active.startBal } : {}) };
     return out;
   }
   function parseBackup(text) {
@@ -542,6 +562,63 @@
     return `<div class="glbl">${title}</div><div class="deeds">${ds.map(deedBtn).join('')}</div>`;
   };
 
+  // ---------- The live timer dial ----------
+  // A 60-second sweep ring and a spinning marker (CSS, in sync with the real clock), and a "vessel" in the middle that shows what
+  // the session does: a pillar fills up while you look after yourself, your Ticks drain while you waste time, a plant grows while
+  // you invest. Coins float up when you earn and fall when you spend.
+  const REDUCED = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const CIRC = 2 * Math.PI * 104;
+  let lastSec = -1, lastSpawn = 0;
+  const plantSVG = () => `<g id="plant" style="transform-origin:120px 196px;transform:scale(.25)">
+      <ellipse cx="120" cy="196" rx="36" ry="7" fill="#6FBF3B" opacity=".35"/>
+      <g class="sway"><path d="M120 196 C120 176 118 160 120 140" stroke="#2F6B2A" stroke-width="5" fill="none" stroke-linecap="round"/>
+      <path class="leaf l1" d="M120 178 C102 176 94 164 96 156 C110 156 120 166 120 178Z" fill="#6FBF3B"/>
+      <path class="leaf l2" d="M120 168 C138 166 146 154 144 146 C130 146 120 156 120 168Z" fill="#6FBF3B"/>
+      <path class="leaf l3" d="M120 152 C104 150 98 140 100 132 C112 132 120 140 120 152Z" fill="#2F6B2A"/>
+      <g class="fruit"><circle cx="120" cy="132" r="10" fill="#C9F26B" stroke="#16210F" stroke-width="3"/><circle cx="120" cy="132" r="2.6" fill="#16210F"/></g></g></g>`;
+  function stageHTML(d) {
+    const el = activeElapsed(), delay = `animation-delay:-${(el % 60).toFixed(2)}s`, waves = 'M0 10 Q20 0 40 10 T80 10 T120 10 T160 10 T200 10 T240 10 T280 10 T320 10 V400 H0Z';
+    const vessel = d.kind !== 'invest', col = d.kind === 'useless' ? '#2F6B2A' : '#6FBF3B';
+    return `<div class="stage k-${d.kind}" id="stage">
+      <svg viewBox="0 0 240 240" class="dial" aria-hidden="true">
+        <defs><clipPath id="vclip"><circle cx="120" cy="120" r="78"/></clipPath></defs>
+        <circle cx="120" cy="120" r="104" fill="none" stroke="var(--line)" stroke-width="10"/>
+        <circle cx="120" cy="120" r="78" fill="var(--card)"/>
+        ${vessel ? `<g clip-path="url(#vclip)"><g id="liquid" style="transform:translateY(110px)"><g class="wave w1"><path d="${waves}" fill="${col}" opacity=".38"/></g><g class="wave w2"><path d="${waves}" fill="${col}" opacity=".26" transform="translate(-30 5)"/></g></g></g>` : plantSVG()}
+        ${[...Array(12)].map((_, i) => `<line x1="120" y1="13" x2="120" y2="${i % 3 ? 22 : 27}" stroke="var(--muted)" stroke-width="${i % 3 ? 2 : 3}" stroke-linecap="round" transform="rotate(${i * 30} 120 120)" opacity=".5"/>`).join('')}
+        <g transform="rotate(-90 120 120)"><circle class="sweep" cx="120" cy="120" r="104" fill="none" stroke="${d.kind === 'useless' ? 'var(--ink)' : '#6FBF3B'}" stroke-width="10" stroke-linecap="round" stroke-dasharray="${CIRC.toFixed(1)}" style="${delay}"/></g>
+        <g class="hand" style="${delay}"><circle cx="120" cy="16" r="9" fill="#C9F26B" stroke="#16210F" stroke-width="3"/></g>
+      </svg>
+      <div class="dtext"><div class="dname">${esc(d.name)}</div><div class="dclock live" id="clock">${clock(el)}</div><div class="dsub live" id="sess"></div></div>
+      <div class="pts" id="pts"></div></div>`;
+  }
+  function spawnCoin(dir) {
+    const box = $('#pts'); if (!box || box.children.length > 6) return;
+    const e = document.createElement('span'); e.className = 'pt ' + dir;
+    e.style.left = (62 + Math.random() * 116) + 'px'; e.style.top = (dir === 'up' ? 150 + Math.random() * 24 : 26 + Math.random() * 22) + 'px';
+    e.innerHTML = signSVG('', 22); e.addEventListener('animationend', () => e.remove()); box.appendChild(e);
+  }
+  function animateStage(d, el) {
+    if (!$('#stage')) return;
+    const sec = Math.floor(el), c = $('#clock');
+    if (c && sec !== lastSec) { lastSec = sec; c.classList.remove('bump'); void c.offsetWidth; c.classList.add('bump'); }          // tiny pulse every second
+    const lq = $('#liquid');
+    if (lq) {
+      let L = 0.5;
+      if (d.kind === 'care') L = pv(d.pillar) / 100;                                                                                 // the pillar fills up
+      else if (d.kind === 'useless') L = clamp(balance() / Math.max(1, S.active.startBal || balance() || 1), 0, 1);                  // your Ticks drain away
+      lq.style.transform = `translateY(${198 - L * 156 - 10}px)`;
+    }
+    const pl = $('#plant');
+    if (pl) {                                                                                                                       // the plant grows over ~45 minutes
+      const pr = clamp(el / 60 / 45, 0, 1), g = 0.25 + 0.6 * pr; pl.style.transform = `scale(${g})`;          // never grows tall enough to touch the clock
+      ['l1', 'l2', 'l3'].forEach((k, i) => pl.querySelector('.' + k).classList.toggle('on', pr > [0.3, 0.55, 0.8][i]));
+      pl.querySelector('.fruit').classList.toggle('on', pr >= 1);
+    }
+    const earning = d.kind === 'care' && (d.mode === 'tap' || pv(d.pillar) < 99.5);
+    if (!REDUCED && d.kind !== 'neutral' && Date.now() - lastSpawn > 1300 && (d.kind !== 'care' || earning)) { lastSpawn = Date.now(); spawnCoin(d.kind === 'care' ? 'up' : 'down'); }
+  }
+
   function viewWallet() {
     const bal = balance(), { earned, spent } = dayEarnSpend(0), left = timeLeft(), debt = bal < -0.004, hs = healthScore();
     return `
@@ -560,8 +637,7 @@
       <div class="card">
         ${S.active ? (() => { const d = deedOf(S.active.deedId); return `
           <div class="sub"><span class="pulse"></span>${{ invest: 'Investing in', care: 'Looking after', useless: 'Spending on', neutral: 'Doing' }[d.kind]} <b>${esc(d.name)}</b> · ${rateLbl(d)}</div>
-          <div class="mid live" id="clock">${clock(activeElapsed())}</div>
-          <div class="sub live" id="sess"></div>
+          ${stageHTML(d)}
           <button class="btn stop" data-act="stop">Stop</button>`; })() : `
           <div class="mid">What are you doing?</div>
           <div class="sub">${gated() ? `Health is too low to invest — refill ${lowest(2).map(k => PILLARS[k].name).join(' or ')} first.` : 'Looking after yourself earns Ticks. Investing pays back later. Useless things just cost.'}</div>
@@ -648,7 +724,7 @@
         <div class="card"><div class="mid">${tk}${num(spent)}</div><div class="sub">Invested so far</div></div>
         <div class="card"><div class="mid">${tk}${num(returned)}</div><div class="sub">Paid back</div></div>
       </div>
-      ${S.active && deedOf(S.active.deedId).kind === 'invest' ? `<div class="card"><div class="sub"><span class="pulse"></span>Investing in <b>${esc(deedOf(S.active.deedId).name)}</b></div><div class="mid live" id="clock">${clock(activeElapsed())}</div><div class="sub live" id="sess"></div><button class="btn stop" data-act="stop">Stop</button></div>` : ''}
+      ${S.active && deedOf(S.active.deedId).kind === 'invest' ? `<div class="card"><div class="sub"><span class="pulse"></span>Investing in <b>${esc(deedOf(S.active.deedId).name)}</b></div>${stageHTML(deedOf(S.active.deedId))}<button class="btn stop" data-act="stop">Stop</button></div>` : ''}
       ${st.length ? st.map(x => `
         <div class="card">
           <div style="display:flex;justify-content:space-between;align-items:center"><div class="mid">${esc(x.d.name)}</div><button class="x edit" data-edit="${x.d.id}" aria-label="Edit ${esc(x.d.name)}">✎</button></div>
@@ -753,8 +829,8 @@
       <h2>Where your time went</h2>
       <div class="card">${tmIds.length ? `<div class="segbar">${tmIds.map(id => `<i style="width:${(tm[id] / tmTot) * 100}%;background:${deedOf(id).color}"></i>`).join('')}</div>` + tmIds.map(id => `
         <div class="row"><i class="dot" style="background:${deedOf(id).color}"></i><div class="t"><b>${esc(deedOf(id).name)}</b></div><div class="r"><b>${dur(tm[id])}</b><span>${Math.round((tm[id] / tmTot) * 100)}% of tracked</span></div></div>`).join('') : '<div class="empty">No tracked time yet.</div>'}</div>
-      <h2>Journal</h2>
-      <div class="card">${shownNotes.length ? shownNotes.map(noteHTML).join('') : '<div class="empty">No notes yet.<br>After you stop an investment or buy a goal you can write what you got from it.</div>'}</div>
+      <div style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:22px 0 10px">Journal</h2><button class="chip" style="margin:12px 0 0" data-act="writenote">+ Write a note</button></div>
+      <div class="card">${shownNotes.length ? shownNotes.map(noteHTML).join('') : '<div class="empty">No notes yet.<br>After a session, a check-in or a purchase you can write what you got from it — or tap + Write a note.</div>'}</div>
       <h2>Day by day</h2>
       <div class="card">${shownDays.length ? shownDays.map(r => `
         <div class="dayrow"><div class="t" style="flex:1"><b>${dayLabel(r.off, r.d0)}</b><div class="sub">+${t1(r.earned)} earned · −${t1(r.spent)} spent</div></div>
@@ -792,7 +868,8 @@
       const d = deedOf(S.active.deedId), el = activeElapsed(), t = ticksFor(S.active, el);
       const c = $('#clock'); if (c) c.textContent = clock(el);
       const s = $('#sess');
-      if (s) s.innerHTML = d.kind === 'neutral' ? 'No Ticks change' : `${t >= 0 ? '+' : '−'}${tk}${Math.abs(t).toFixed(2)} this session` + (d.kind === 'care' && d.mode === 'timer' ? ` · ${PILLARS[d.pillar].name} ${Math.round(pv(d.pillar))}%` : '');
+      if (s) s.innerHTML = d.kind === 'neutral' ? 'time only' : `${t >= 0 ? '+' : '−'}${tk}${Math.abs(t).toFixed(2)}` + (d.kind === 'care' && d.mode === 'timer' ? `<br>${PILLARS[d.pillar].name} ${Math.round(pv(d.pillar))}%` : '');
+      animateStage(d, el);
       const wh = $('#where'); if (wh) wh.innerHTML = whereHTML();
     }
   }
@@ -802,11 +879,13 @@
     const a = S.active; if (!a) return;
     const d = deedOf(a.deedId), end = Math.min(Date.now(), a.start + DAY * 1000), secs = (end - a.start) / 1000;
     const isInv = d.kind === 'invest', cost = isInv ? d.rate * secs / 60 : 0, divBefore = isInv ? dividendPerDay(d) : 0;
+    const isCare = d.kind === 'care' && d.mode === 'timer', careEarn = isCare ? ticksFor(a, secs) : 0, careBefore = isCare ? hBase(d.pillar) : 0;
     S.active = null; S.lastStopped = Math.max(S.lastStopped || 0, a.start);
     addSpan(a, end);
     if (d.kind === 'care' && d.mode === 'timer' && d.pts > 0) refill(d.pillar, d.pts * (end - a.start) / 60000);
     save(); render();
     if (!opts.silent && isInv && secs >= 10) investSummary(d, secs, cost, divBefore, dividendPerDay(d));   // popup: what did you get from this?
+    if (!opts.silent && isCare && secs >= 10) careSummary(d, secs, careEarn, careBefore, hBase(d.pillar));
   }
 
   // ---------- sheets ----------
@@ -933,7 +1012,7 @@
       const dd = deedOf(d.start);
       if (S.active || timeLeft() <= 0) return;
       if (dd.kind === 'invest' && gated()) { flash('Health is too low to invest — refill a pillar first'); return; }
-      S.active = { deedId: d.start, start: Date.now(), startVal: dd.kind === 'care' ? hBase(dd.pillar) : 0 }; save(); render(); return;
+      S.active = { deedId: d.start, start: Date.now(), startVal: dd.kind === 'care' ? hBase(dd.pillar) : 0, startBal: balance() }; save(); render(); return;
     }
     if (d.range) { histRange = +d.range; render(); return; }
     if (d.buy) { buyGoal(d.buy, t); return; }
@@ -948,6 +1027,7 @@
       case 'about': aboutSheet(false); break;
       case 'account': accountSheet(); break;
       case 'backup': backupSheet(); break;
+      case 'writenote': writeNoteSheet(); break;
       case 'adddeed': deedSheet(); break;
       case 'logpast': logPastSheet(); break;
       case 'addgoal': goalSheet(); break;
