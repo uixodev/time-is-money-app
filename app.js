@@ -47,6 +47,7 @@
     entries: [],   // {id, deedId, ts, secs, ticks (signed)}
     active: null,  // {deedId, start, startVal}
     goals: [],     // {id, name, target (Ticks)}
+    bought: [],    // {id, name, cost, ts} rewards you've bought
     chat: [],
   });
   const sgn = d => d.kind === 'hard' || d.kind === 'care' ? 1 : d.kind === 'useless' ? -1 : 0;
@@ -119,7 +120,11 @@
   const nf = x => Number.isInteger(x) ? String(x) : String(Math.round(x * 10) / 10);
   const dayStart = off => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - off); return d.getTime(); };
   const nextMidnight = () => { const d = new Date(); d.setHours(24, 0, 0, 0); return d.getTime(); };
-  const deedOf = id => S.deeds.find(d => d.id === id) || { id, name: 'Other', color: '#D6DCC8', kind: 'neutral', rate: 0 };
+  const deedOf = id => {
+    const d = S.deeds.find(x => x.id === id); if (d) return d;
+    if (String(id).startsWith('reward:')) { const b = S.bought.find(x => x.id === id); return { id, name: b ? `Reward: ${b.name}` : 'Reward', color: '#16210F', kind: 'reward', rate: 0 }; }
+    return { id, name: 'Other', color: '#D6DCC8', kind: 'neutral', rate: 0 };
+  };
   const rateLbl = d => d.kind === 'hard' ? `+${nf(d.rate)}/min` : d.kind === 'useless' ? `−${nf(d.rate)}/min`
     : d.kind === 'care' ? (d.mode === 'tap' ? `+${nf(d.rate)} each` : `+${nf(d.rate)}/min`) : 'no Ticks';
   const careLbl = d => d.mode === 'tap' ? `${PILLARS[d.pillar].name} +${nf(d.pts)}%` : `${PILLARS[d.pillar].name} +${nf(d.pts)}%/min`;
@@ -206,6 +211,16 @@
     refill(d.pillar, gain);
     S.entries.push({ id: uid(), deedId: id, ts: Date.now(), secs: 0, ticks });
     save(); flash(`${PILLARS[d.pillar].name} +${nf(gain)}% · +${t1(ticks)} Ticks`); render();
+  }
+
+  function buyGoal(id) {
+    const g = S.goals.find(x => x.id === id); if (!g) return;
+    if (balance() < g.target) { flash(`You need ${t1(g.target - balance())} more Ticks`); return; }
+    const rid = `reward:${uid()}`, ts = Date.now();
+    S.bought.unshift({ id: rid, name: g.name, cost: g.target, ts });
+    S.entries.push({ id: uid(), deedId: rid, ts, secs: 0, ticks: -g.target });
+    S.goals = S.goals.filter(x => x.id !== id);
+    save(); flash(`Enjoy! “${g.name}” is yours 🎉`); render();
   }
 
   // ---------- ui state ----------
@@ -372,15 +387,19 @@
     const bal = Math.max(0, balance()), hr = Math.max(1, maxHardRate());
     return `
       ${head('Goals', '<button class="icon-btn" data-act="addgoal" aria-label="Add goal">+</button>')}
-      <div class="sub" style="margin:-4px 0 12px">Rewards you're earning Ticks for.</div>
+      <div class="sub" style="margin:-4px 0 12px">Rewards you're earning Ticks for. Reach the target, then buy it.</div>
       ${S.goals.length ? S.goals.map((g, i) => {
-        const pct = Math.min(100, (bal / g.target) * 100), cls = ['peach', 'mint', 'sky'][i % 3], need = g.target - balance();
+        const pct = Math.min(100, (bal / g.target) * 100), cls = ['peach', 'mint', 'sky'][i % 3], need = g.target - balance(), can = need <= 0;
         return `<div class="card ${cls}">
           <div style="display:flex;justify-content:space-between"><div class="mid">${esc(g.name)}</div><button class="x" data-del-goal="${g.id}" aria-label="Delete goal">✕</button></div>
           <div class="big">${tk}${num(Math.min(bal, g.target))}</div>
-          <div class="sub">of ${tk}${num(g.target)} · ${need > 0 ? `${num(need)} to go ≈ ${dur(need / hr * 60)} of hard work` : 'You can afford it 🎉'}</div>
-          <div class="bar"><i style="width:${pct}%"></i></div></div>`;
-      }).join('') : '<div class="card"><div class="empty">No goals yet.<br>Tap + and name a guilt-free reward, like “Gaming weekend”.</div></div>'}`;
+          <div class="sub">of ${tk}${num(g.target)} · ${can ? 'You can afford it 🎉' : `${num(need)} to go ≈ ${dur(need / hr * 60)} of hard work`}</div>
+          <div class="bar"><i style="width:${pct}%"></i></div>
+          <button class="btn" data-buy="${g.id}" ${can ? '' : 'disabled'}>${can ? `Buy it · ${num(g.target)} Ticks` : 'Keep earning'}</button></div>`;
+      }).join('') : '<div class="card"><div class="empty">No goals yet.<br>Tap + and name a guilt-free reward, like “Gaming weekend”.</div></div>'}
+      ${S.bought.length ? `<h2>Rewards you've bought</h2><div class="card">${S.bought.slice(0, 20).map(b => `
+        <div class="row"><div class="t"><b>${esc(b.name)}</b><span>${new Date(b.ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span></div>
+        <div class="r"><b>${tk}−${num(b.cost)}</b></div></div>`).join('')}</div>` : ''}`;
   }
 
   function viewHistory() {
@@ -569,6 +588,7 @@
       if (dd.kind === 'hard' && gated()) { flash('Health is too low — refill a pillar first'); return; }
       S.active = { deedId: d.start, start: Date.now(), startVal: dd.kind === 'care' ? hBase(dd.pillar) : 0 }; save(); render(); return;
     }
+    if (d.buy) { buyGoal(d.buy); return; }
     if (d.edit) { deedSheet(d.edit); return; }
     if (d.delGoal) { S.goals = S.goals.filter(g => g.id !== d.delGoal); save(); render(); return; }
     switch (d.act) {
