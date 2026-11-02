@@ -46,9 +46,11 @@
   const coinInner = (c, withLabel) => `<circle cx="24" cy="24" r="21" fill="${c.fill}" stroke="${INK}" stroke-width="3"/>${ring(c.fg)}` +
     (withLabel ? `<text x="24" y="29.2" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-size="13" font-weight="800" fill="${c.fg}">${c.label}</text>` : `<circle cx="24" cy="24" r="3.4" fill="${c.fg}"/>`);
   const coin = (k, size = 40) => `<svg viewBox="0 0 48 48" width="${size}" height="${size}" aria-hidden="true">${coinInner(COINS[k], true)}</svg>`;
-  // currency symbol (no label so it stays crisp at text size)
-  const tk = '<svg class="tk" viewBox="0 0 48 48" aria-hidden="true">' + coinInner(COINS.tick, false) + '</svg>';
-  const symbol = (size = 26) => `<svg viewBox="0 0 48 48" width="${size}" height="${size}" aria-hidden="true">${coinInner(COINS.tick, false)}</svg>`;
+  // The Tick currency sign: a struck T with a seconds pip (brand/tick-sign.svg)
+  const SIGN = '<path d="M14 14H50M32 14V52M21 31H43"/><circle cx="50" cy="48" r="3.6" fill="currentColor" stroke="none"/>';
+  const signSVG = (cls, size) => `<svg ${cls ? `class="${cls}"` : ''} ${size ? `width="${size}" height="${size}"` : ''} viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${SIGN}</svg>`;
+  const tk = signSVG('tk');
+  const symbol = (size = 26) => signSVG('', size);
 
   // consistent 24px line icons for the tab bar
   const ICONS = {
@@ -362,7 +364,7 @@
   document.addEventListener('submit', e => { if (e.target.id === 'askform') { e.preventDefault(); ask($('#q').value); } });
 
   // ---------- boot ----------
-  $('#logo').innerHTML = coin('tick', 52) + '<span>tick</span>';
+  $('#logo').innerHTML = signSVG('', 52) + '<span>tick</span>';
   $('#logo').style.cssText = 'font-size:44px;gap:10px';
   render(); tick();
   setTimeout(() => { $('#splash').classList.add('hide'); if (!S.onboarded) aboutSheet(true); }, 900);

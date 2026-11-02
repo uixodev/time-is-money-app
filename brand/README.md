@@ -1,7 +1,9 @@
 # Tick brand assets
 
-The Tick currency sign is an **hourglass** — drawn as a single stroked glyph so it can sit in front of an
-amount like `$` or `€`: ⧖ 86,400.
+The Tick currency sign is a **struck T with a seconds pip** — a single stroked glyph that sits in front of an
+amount like `$` or `€`: Ŧ. 86,400. (Concept C of three; see `concepts.html`.)
+
+Note: it is related to the tögrög sign ₮ (a T with a strike). The pip is what makes it ours — keep it.
 
 | File | Use |
 |---|---|

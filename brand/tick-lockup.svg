@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 96" width="280" height="96">
   <rect x="4" y="8" width="80" height="80" rx="22" fill="#C9F26B"/>
-  <g transform="translate(16 20) scale(.8125)" fill="none" stroke="#16210F" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"><path d="M16 9H48M16 55H48"/><path d="M21 9C21 25 30 29 32 32C30 35 21 39 21 55M43 9C43 25 34 29 32 32C34 35 43 39 43 55"/></g>
+  <g transform="translate(16 20) scale(.8125)" fill="none" stroke="#16210F" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 14H50M32 14V52M21 31H43"/><circle cx="50" cy="48" r="3.4" fill="#16210F" stroke="none"/></g>
   <text x="100" y="66" font-family="-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="54" font-weight="800" letter-spacing="-2" fill="#16210F">tick</text>
 </svg>
