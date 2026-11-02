@@ -55,7 +55,7 @@ Ticks come in **Tick (1)**, **Ten (10)** and **Hundred (100)** coins. The curren
 
 ## Screens
 
-- **Wallet** – Ticks balance, what are you doing, coin purse, time left, where today went. (Health still runs underneath; ask "how is my health?" in the Invest tab to see the pillars.)
+- **Wallet** – Ticks balance, coin purse, a live countdown to midnight (ticks every second), what are you doing, where today went. (Health still runs underneath; ask "how is my health?" in the Invest tab to see the pillars.)
 - **Deeds** – care / investment / useless / living deeds. Add, edit (✎) or delete; log time you already spent.
 - **Invest** – your portfolio and the What-if calculator.
 - **Goals** – rewards to save Ticks for. Edit (✎), then **Buy it** — with confetti and a chime (switch sounds off in the Ŧ. menu).

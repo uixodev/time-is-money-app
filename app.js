@@ -5,7 +5,7 @@
 (() => {
   'use strict';
   const KEY = 'tick.v1';
-  const VERSION = 'v12 · Health income + investments + journal';   // bump with the ?v= number in index.html so browsers fetch fresh files
+  const VERSION = 'v13 · Health income + investments + journal';   // bump with the ?v= number in index.html so browsers fetch fresh files
   const DAY = 86400;
   const $ = (s, el = document) => el.querySelector(s);
   // one tonal green family (+ ink) so every deed colour belongs to the brand
@@ -189,6 +189,7 @@
     return m;
   }
   const sum = o => Object.values(o).reduce((a, b) => a + b, 0);
+  const dayRemaining = () => Math.max(0, (nextMidnight() - Date.now()) / 1000);   // real seconds until midnight
   const timeLeft = () => Math.max(0, DAY - Math.min(DAY, sum(dayByDeed(0))));
   const dayEarnSpend = off => {
     const [d0, d1] = dayRange(off); let earned = 0, spent = 0;
@@ -448,6 +449,12 @@
         <div class="big live" id="bal">${tk}${tBig(bal)}</div>
         <div class="sub live" id="earnline">+${t1(earned)} earned today · −${t1(spent)} spent</div>
       </div>
+      <div class="purse" id="purse">${purseHTML()}</div>
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:baseline"><b>Time left today</b><span class="mid live" id="hms" style="font-size:22px">${hms(dayRemaining())}</span></div>
+        <div class="bar"><i id="bar" style="width:${((DAY - dayRemaining()) / DAY) * 100}%"></i></div>
+        <div class="sub" style="margin-top:6px" id="tracked">${dur(DAY - timeLeft())} tracked today · 86,400 seconds a day for everyone · expires at midnight</div>
+      </div>
       <div class="card">
         ${S.active ? (() => { const d = deedOf(S.active.deedId); return `
           <div class="sub"><span class="pulse"></span>${{ invest: 'Investing in', care: 'Looking after', useless: 'Spending on', neutral: 'Doing' }[d.kind]} <b>${esc(d.name)}</b> · ${rateLbl(d)}</div>
@@ -457,12 +464,6 @@
           <div class="mid">What are you doing?</div>
           <div class="sub">${gated() ? `Health is too low to invest — refill ${lowest(2).map(k => PILLARS[k].name).join(' or ')} first.` : 'Looking after yourself earns Ticks. Investing pays back later. Useless things just cost.'}</div>
           ${group('care', 'Look after yourself · earns')}${group('invest', 'Invest · pays back later')}${group('useless', 'Spend · no return')}${group('neutral', 'Just living')}`}
-      </div>
-      <div class="purse" id="purse">${purseHTML()}</div>
-      <div class="card">
-        <div style="display:flex;justify-content:space-between;align-items:baseline"><b>Time left today</b><span class="sub live" id="hms">${hms(left)}</span></div>
-        <div class="bar"><i id="bar" style="width:${((DAY - left) / DAY) * 100}%"></i></div>
-        <div class="sub" style="margin-top:6px">Everyone gets 86,400 seconds a day · expires at midnight</div>
       </div>
       <h2>Where today went</h2>
       <div class="card" id="where">${whereHTML()}</div>`;
@@ -631,9 +632,9 @@
     const hero = $('#balhero'); if (hero) hero.classList.toggle('debt', debt);
     set('#earnline', `+${t1(earned)} earned today · −${t1(spent)} spent`);
     set('#hscore', `${Math.round(hs)}<small>%</small>`); set('#hsub', healthSub()); set('#pillars', pillarsHTML());
-    set('#hms', hms(left));
+    set('#hms', hms(dayRemaining())); set('#tracked', `${dur(DAY - left)} tracked today · 86,400 seconds a day for everyone · expires at midnight`);
     if ($('#divs')) set('#divs', tk + tBig(S.deeds.filter(d => d.kind === 'invest').reduce((a, d) => a + dividendPerDay(d), 0)));
-    const bar = $('#bar'); if (bar) bar.style.width = ((DAY - left) / DAY) * 100 + '%';
+    const bar = $('#bar'); if (bar) bar.style.width = ((DAY - dayRemaining()) / DAY) * 100 + '%';
     let b = Math.max(0, Math.floor(bal));
     ['hundred', 'ten', 'tick'].forEach(k => { const n = Math.floor(b / COINS[k].value); b -= n * COINS[k].value; const e = $(`[data-coin="${k}"]`); if (e) e.textContent = n; });
     if (S.active) {
