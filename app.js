@@ -5,7 +5,7 @@
 (() => {
   'use strict';
   const KEY = 'tick.v1';
-  const VERSION = 'v8 · Health income + investments';   // bump with the ?v= number in index.html so browsers fetch fresh files
+  const VERSION = 'v9 · Health income + investments + tap-to-edit goals';   // bump with the ?v= number in index.html so browsers fetch fresh files
   const DAY = 86400;
   const $ = (s, el = document) => el.querySelector(s);
   // one tonal green family (+ ink) so every deed colour belongs to the brand
@@ -519,7 +519,7 @@
       ${S.goals.length ? S.goals.map((g, i) => {
         const pct = Math.min(100, (bal / g.target) * 100), cls = ['peach', 'mint', 'sky'][i % 3], need = g.target - balance(), can = need <= 0;
         return `<div class="card ${cls}">
-          <div style="display:flex;justify-content:space-between"><div class="mid">${esc(g.name)}</div><button class="x edit" data-edit-goal="${g.id}" aria-label="Edit ${esc(g.name)}">✎</button></div>
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><button class="gname mid" data-edit-goal="${g.id}" aria-label="Edit ${esc(g.name)}">${esc(g.name)}</button><button class="x edit" data-edit-goal="${g.id}" aria-label="Edit ${esc(g.name)}">✎</button></div>
           <div class="big">${tk}${num(Math.min(bal, g.target))}</div>
           <div class="sub">of ${tk}${num(g.target)} · ${can ? 'You can afford it 🎉' : `${num(need)} to go ≈ ${Math.max(1, Math.ceil(need / inc))} day${Math.ceil(need / inc) <= 1 ? '' : 's'} at your pace`}</div>
           <div class="bar"><i style="width:${pct}%"></i></div>

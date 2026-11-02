@@ -172,3 +172,4 @@ select.field option{color:#16210F;background:#fff}
 .confetti{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:70}
 .switch{display:flex;align-items:center;gap:12px;margin-top:14px;font-weight:600;cursor:pointer}
 .switch input{width:22px;height:22px;accent-color:#6FBF3B}
+.gname{text-align:left;padding:0;background:none;border:0;color:inherit;cursor:pointer;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
