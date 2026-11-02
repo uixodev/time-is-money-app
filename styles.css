@@ -1,10 +1,11 @@
 :root{
   --lime:#C9F26B; --lime-soft:#E6F9B5; --ink:#16210F; --bg:#F5F8EC; --card:#fff;
   --line:#E4EAD5; --muted:#6B7560; --peach:#E4F5B0; --mint:#CFE5BF; --sky:#B9DC8A; --danger:#16210F;
-  --radius:24px;
+  --btn-bg:#16210F; --btn-fg:#C9F26B; --radius:24px;
+  color-scheme:light dark;
 }
 @media (prefers-color-scheme: dark){
-  :root{--bg:#0F1609; --card:#1A2412; --line:#2B3820; --ink:#F2F8E4; --muted:#9BA88C; --lime-soft:#2A3A10}
+  :root{--bg:#0F1609; --card:#1A2412; --line:#2B3820; --ink:#F2F8E4; --muted:#9BA88C; --lime-soft:#2A3A10; --btn-bg:#C9F26B; --btn-fg:#16210F}
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
@@ -34,7 +35,7 @@ h2{margin:22px 0 10px;font-size:18px;font-weight:800}
 .icon-btn{width:40px;height:40px;border-radius:50%;background:var(--card);border:1px solid var(--line);display:grid;place-items:center;font-size:18px}
 .pills{display:flex;gap:8px;margin-bottom:16px;overflow-x:auto}
 .pill{padding:10px 18px;border-radius:999px;background:var(--card);border:1px solid var(--line);font-weight:700;font-size:15px;white-space:nowrap}
-.pill.on{background:var(--ink);color:var(--lime);border-color:var(--ink)}
+.pill.on{background:var(--btn-bg);color:var(--btn-fg);border-color:var(--btn-bg)}
 
 /* cards */
 .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px;margin-bottom:14px}
@@ -57,9 +58,9 @@ h2{margin:22px 0 10px;font-size:18px;font-weight:800}
 .grid2 .card{margin:0}
 
 /* buttons */
-.btn{width:100%;padding:16px;border-radius:999px;background:var(--ink);color:var(--lime);font-weight:800;font-size:16px;margin-top:14px}
+.btn{width:100%;padding:16px;border-radius:999px;background:var(--btn-bg);color:var(--btn-fg);font-weight:800;font-size:16px;margin-top:14px}
 .btn.lime{background:var(--lime);color:#16210F}.btn.ghost{background:transparent;border:1.5px solid var(--ink);color:var(--ink)}
-.btn.stop{background:var(--ink);color:var(--lime)}
+.btn.stop{background:var(--btn-bg);color:var(--btn-fg)}
 .btn.sm{width:auto;padding:10px 18px;font-size:14px;margin:0}
 .field{width:100%;padding:14px 16px;border-radius:16px;border:1px solid var(--line);background:var(--bg);font-size:16px;margin-top:10px}
 .field:focus{outline:2px solid var(--lime)}
@@ -88,10 +89,10 @@ h2{margin:22px 0 10px;font-size:18px;font-weight:800}
 .chat{display:flex;flex-direction:column;gap:10px;margin:14px 0}
 .bub{max-width:85%;padding:12px 16px;border-radius:20px;line-height:1.35;white-space:pre-wrap}
 .bub.bot{background:var(--card);border:1px solid var(--line);border-bottom-left-radius:6px}
-.bub.me{align-self:flex-end;background:var(--ink);color:var(--lime);border-bottom-right-radius:6px}
+.bub.me{align-self:flex-end;background:var(--btn-bg);color:var(--btn-fg);border-bottom-right-radius:6px}
 .askbar{display:flex;gap:8px;position:sticky;bottom:0;background:var(--bg);padding-top:8px}
 .askbar .field{margin:0;flex:1;border-radius:999px}
-.askbar button{width:50px;border-radius:50%;background:var(--ink);color:var(--lime);font-size:20px;font-weight:800}
+.askbar button{width:50px;border-radius:50%;background:var(--btn-bg);color:var(--btn-fg);font-size:20px;font-weight:800}
 .greet{font-size:44px;font-weight:800;letter-spacing:-1.5px;margin:6px 0 4px}
 .glow{position:absolute;left:0;right:0;top:0;height:340px;background:radial-gradient(60% 70% at 50% 0%,var(--lime-soft),transparent);pointer-events:none;z-index:0}
 .view{position:relative}
@@ -141,3 +142,12 @@ label.l{display:block;margin-top:12px;font-size:13px;font-weight:700;color:var(-
 .glbl{margin:14px 0 0;font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
 .deedbtn em{font-style:normal;font-size:12px;font-weight:700;color:var(--muted);margin-left:2px}
 .deedbtn[disabled]{opacity:.4;cursor:not-allowed}
+
+/* ---- form controls & dark-mode fixes ---- */
+select,textarea{font:inherit;color:inherit}
+select.field{color:var(--ink);background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);background-position:calc(100% - 22px) 55%,calc(100% - 16px) 55%;background-size:6px 6px;background-repeat:no-repeat;padding-right:40px}
+select.field option{color:#16210F;background:#fff}
+.field::placeholder{color:var(--muted);opacity:.8}
+.sheet .field{background-color:var(--card)}
+.hero .bar{background:rgba(22,33,15,.15)}
+.hero .bar>i{background:#16210F}
