@@ -5,7 +5,7 @@
 (() => {
   'use strict';
   const KEY = 'tick.v1';
-  const VERSION = 'v28';   // bump with the ?v= number in index.html so browsers fetch fresh files
+  const VERSION = 'v29';   // bump with the ?v= number in index.html so browsers fetch fresh files
   const DAY = 86400;
   const $ = (s, el = document) => el.querySelector(s);
   // one tonal green family (+ ink) so every deed colour belongs to the brand
@@ -162,6 +162,7 @@
   const nextMidnight = () => { const d = new Date(); d.setHours(24, 0, 0, 0); return d.getTime(); };
   const deedOf = id => {
     const d = S.deeds.find(x => x.id === id); if (d) return d;
+    if (String(id).startsWith('adjust:')) return { id, name: 'Fresh start', color: '#D6DCC8', kind: 'adjust', rate: 0 };
     if (String(id).startsWith('reward:')) { const b = S.bought.find(x => x.id === id); return { id, name: b ? `Reward: ${b.name}` : 'Reward', color: '#16210F', kind: 'reward', rate: 0 }; }
     return { id, name: 'Other', color: '#D6DCC8', kind: 'neutral', rate: 0 };
   };
@@ -172,6 +173,7 @@
   // care timers are labelled in Tons per second; check-ins in Tons each; costs stay per minute
   const rateLbl = d => d.kind === 'invest' || d.kind === 'useless' ? `−${nf2(d.rate)}/min`
     : d.kind === 'care' ? (d.mode === 'tap' ? `+${nf(careRate(d))} Tons each` : `+${perSec(careRate(d))} Tons/sec`) : 'no Tons';
+  const isAdjust = e => String(e.deedId).startsWith('adjust:');   // fresh-start corrections: count toward the balance, never toward earned/spent
   const dayRange = off => [dayStart(off), off === 0 ? nextMidnight() : dayStart(off - 1)];
 
   // ---------- Health ----------
@@ -218,7 +220,7 @@
   }
   function dayTicksByDeed(off) {
     const [d0, d1] = dayRange(off), m = {};
-    S.entries.forEach(e => { if (e.ts >= d0 && e.ts < d1) m[e.deedId] = (m[e.deedId] || 0) + e.ticks; });
+    S.entries.forEach(e => { if (e.ts >= d0 && e.ts < d1 && !isAdjust(e)) m[e.deedId] = (m[e.deedId] || 0) + e.ticks; });
     S.actives.forEach(a => { const x = activeTicksOf(a, d0, d1); if (x) m[a.deedId] = (m[a.deedId] || 0) + x; });
     return m;
   }
@@ -227,7 +229,7 @@
   const trackedToday = () => Math.min(DAY - dayRemaining(), sum(dayByDeed(0)));   // doing deeds together doesn't make the day longer
   const dayEarnSpend = off => {
     const [d0, d1] = dayRange(off); let earned = 0, spent = 0;
-    S.entries.forEach(e => { if (e.ts >= d0 && e.ts < d1) { if (e.ticks > 0) earned += e.ticks; else spent -= e.ticks; } });
+    S.entries.forEach(e => { if (e.ts >= d0 && e.ts < d1 && !isAdjust(e)) { if (e.ticks > 0) earned += e.ticks; else spent -= e.ticks; } });
     S.actives.forEach(a => { const t = activeTicksOf(a, d0, d1); if (t > 0) earned += t; else spent -= t; });
     return { earned, spent };
   };
@@ -614,6 +616,45 @@
     document.querySelectorAll('[data-row]').forEach(r => { const a = S.actives.find(x => x.id === r.dataset.row); if (!a) return; const el = elapsedOf(a), t = ticksFor(a, el); r.querySelector('.rk').textContent = `${clock(el)} · ${rateLbl(deedOf(a.deedId))}`; r.querySelector('.rt').textContent = `${t >= 0 ? '+' : '−'}${Math.abs(t).toFixed(2)}`; });
   }
 
+  // balance at the start of today = balance now − what today added + what today took
+  const startBal = () => { const { earned, spent } = dayEarnSpend(0); return balance() - earned + spent; };
+  const startLine = () => { const b = startBal(); return b < -0.004 ? `Started today in debt: −${t1(b)}` : `Started today with ${t1(b)}`; };
+  function ledgerSheet() {
+    const offs = Array.from({ length: 30 }, (_, i) => 29 - i).filter(off => dayStart(off) + 86400000 > S.created);
+    let run = S.gift;
+    const adjBefore = d => S.entries.filter(e => isAdjust(e) && e.ts < d).reduce((a, e) => a + e.ticks, 0);
+    const rows = offs.map(off => {
+      const [d0, d1] = dayRange(off), { earned, spent } = dayEarnSpend(off);
+      const adj = S.entries.filter(e => isAdjust(e) && e.ts >= d0 && e.ts < d1).reduce((a, e) => a + e.ticks, 0);
+      run += earned - spent + adj;
+      return { off, d0, earned, spent, adj, end: run };
+    }).reverse();
+    const cost = {}, gain = {};
+    const from = dayStart(29);
+    const add = (id, t) => { if (!t) return; const m = t > 0 ? gain : cost; m[id] = (m[id] || 0) + Math.abs(t); };
+    S.entries.forEach(e => { if (e.ts >= from && !isAdjust(e)) add(e.deedId, e.ticks); });
+    S.actives.forEach(a => add(a.deedId, activeTicksOf(a, from, Infinity)));
+    const top = (m, sign) => Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([id, v]) => `<div class="crow"><div class="cn"><span>${esc(deedOf(id).name)}</span><b>${sign}${t1(v)}</b></div></div>`).join('') || '<div class="sub">Nothing yet.</div>';
+    const bal = balance(), debt = bal < -0.004;
+    openSheet(`<h3>Where did my Tons go?</h3>
+      <div class="sub">Your balance is a running total: <b>${S.gift} welcome Tons</b>, plus everything you earned, minus everything you spent — and it carries over from day to day. Today starts from yesterday's balance.</div>
+      <div class="card" style="margin-top:12px">${rows.map(r => `<div style="display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid var(--line, rgba(0,0,0,.08))"><span>${r.off === 0 ? 'Today' : r.off === 1 ? 'Yesterday' : new Date(r.d0).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}<span class="sub"> +${t1(r.earned)} · −${t1(r.spent)}${Math.abs(r.adj) > 0.004 ? ' · fresh start' : ''}</span></span><b>${r.end < -0.004 ? '−' : ''}${t1(r.end)}</b></div>`).join('')}
+        <div class="sub" style="margin-top:6px">The number on the right is your balance at the end of that day.</div></div>
+      <div class="mid" style="margin-top:12px">Biggest costs (30 days)</div>${top(cost, '−')}
+      <div class="mid" style="margin-top:12px">Biggest earnings (30 days)</div>${top(gain, '+')}
+      ${debt ? `<div class="sub" style="margin-top:10px">You're below zero, so useless time costs +50% until you're back above it. Earned Tons repay the debt first.</div>` : ''}
+      ${bal < S.gift - 0.004 ? '<button class="btn" id="fresh" style="margin-top:12px">Start fresh at ' + S.gift + ' Tons</button><div class="sub">Keeps all your history and notes — it only resets the balance.</div>' : ''}
+      <button class="btn lime" id="ok" style="margin-top:10px;border:1.5px solid var(--ink)">Close</button>`, w => {
+      $('#ok', w).onclick = closeSheet;
+      const f = $('#fresh', w);
+      if (f) f.onclick = () => {
+        if (!confirm(`Reset your balance to ${S.gift} Tons? Your history and notes are kept.`)) return;
+        S.entries.push({ id: uid(), deedId: 'adjust:' + uid(), ts: Date.now(), secs: 0, ticks: S.gift - balance() });
+        save(); closeSheet(); render(); flash('Fresh start — balance reset');
+      };
+    });
+  }
+
   function viewWallet() {
     const bal = balance(), { earned, spent } = dayEarnSpend(0), debt = bal < -0.004, hs = healthScore();
     return `
@@ -621,7 +662,9 @@
       <div class="card hero ${debt ? 'debt' : ''}" id="balhero">
         <div class="lbl" id="ballbl">${debt ? 'In debt · useless time costs +50%' : 'Your Tons'}</div>
         <div class="big live" id="bal">${tk}${tBig(bal)}</div>
+        <div class="sub live" id="startline">${startLine()}</div>
         <div class="sub live" id="earnline">+${t1(earned)} earned today · −${t1(spent)} spent</div>
+        <button class="chip" data-act="ledger" style="margin:10px 0 0;background:none;color:inherit">Where did my Tons go? ›</button>
       </div>
       <div class="purse" id="purse">${purseHTML()}</div>
       <div class="card">
@@ -782,7 +825,7 @@
     const earned = rows.reduce((a, r) => a + r.earned, 0), spent = rows.reduce((a, r) => a + r.spent, 0), net = earned - spent;
     // where Tons came from / went
     const tin = {}, tout = {};
-    S.entries.forEach(e => { if (e.ts < from || !e.ticks) return; const c = catOf(e); const m = e.ticks > 0 ? tin : tout; m[c] = (m[c] || 0) + Math.abs(e.ticks); });
+    S.entries.forEach(e => { if (e.ts < from || !e.ticks || isAdjust(e)) return; const c = catOf(e); const m = e.ticks > 0 ? tin : tout; m[c] = (m[c] || 0) + Math.abs(e.ticks); });
     S.actives.forEach(a => { const t = activeTicksOf(a, from, Infinity), d = deedOf(a.deedId), c = d.kind === 'care' ? 'care' : d.kind === 'invest' ? 'invest' : 'useless'; if (t > 0) tin[c] = (tin[c] || 0) + t; else if (t < 0) tout[c] = (tout[c] || 0) - t; });
     const catMax = Math.max(1, ...Object.values(tin), ...Object.values(tout));
     const catRows = (m, cls) => Object.entries(m).sort((a, b) => b[1] - a[1]).map(([c, v]) => `
@@ -850,6 +893,7 @@
     set('#bal', tk + tBig(bal));
     set('#ballbl', debt ? 'In debt · useless time costs +50%' : 'Your Tons');
     const hero = $('#balhero'); if (hero) hero.classList.toggle('debt', debt);
+    set('#startline', startLine());
     set('#earnline', `+${t1(earned)} earned today · −${t1(spent)} spent`);
     set('#hscore', `${Math.round(hs)}<small>%</small>`); set('#hsub', healthSub()); set('#pillars', pillarsHTML());
     set('#hms', hms(dayRemaining())); set('#tracked', `${dur(trackedToday())} tracked today · 86,400 seconds a day for everyone · expires at midnight`);
@@ -1023,6 +1067,7 @@
       case 'about': aboutSheet(false); break;
       case 'account': accountSheet(); break;
       case 'backup': backupSheet(); break;
+      case 'ledger': ledgerSheet(); break;
       case 'writenote': writeNoteSheet(); break;
       case 'adddeed': deedSheet(); break;
       case 'logpast': logPastSheet(); break;

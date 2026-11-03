@@ -32,6 +32,10 @@ Things like *Learn to code* or *Deep work* **cost Tons now** (0.25/min by defaul
 
 Scrolling, gaming… they just cost Tons (1–5/min) and return nothing. Investments are deliberately cheaper than useless time.
 
+## Where did my Tons go?
+
+Your balance is a **running total** — welcome Tons + everything earned − everything spent — and it carries over between days. The Wallet card therefore shows three lines that always add up: **Started today with X** (or **in debt: −X**), **+earned · −spent today**, and the balance. Tap **Where did my Tons go?** for a day-by-day ledger (balance at the end of each day), your biggest costs and earnings, and — when you're below the welcome amount — **Start fresh at 30 Tons**, which resets the balance without touching your history or notes (it's stored as a "Fresh start" entry that counts toward the balance only, never toward earned/spent).
+
 ## Debt
 
 Tons can go below zero. In debt, **useless** time costs **+50%**. Earned Tons repay the debt first.
