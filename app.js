@@ -5,7 +5,7 @@
 (() => {
   'use strict';
   const KEY = 'tick.v1';
-  const VERSION = 'v33';   // bump with the ?v= number in index.html so browsers fetch fresh files
+  const VERSION = 'v34';   // bump with the ?v= number in index.html so browsers fetch fresh files
   const DAY = 86400;
   const $ = (s, el = document) => el.querySelector(s);
   // one tonal green family (+ ink) so every deed colour belongs to the brand
@@ -668,16 +668,15 @@
         <div class="big live" id="bal">${tk}${tBig(bal)}</div>
         <button class="chip" data-act="ledger" style="margin:12px 0 0;background:none;color:inherit">View history ›</button>
       </div>
-      <div class="purse" id="purse">${purseHTML()}</div>
       <div class="card">
         <div style="display:flex;justify-content:space-between;align-items:baseline"><b>Time left today</b><span class="mid live" id="hms" style="font-size:22px">${hms(dayRemaining())}</span></div>
         <div class="bar"><i id="bar" style="width:${((DAY - dayRemaining()) / DAY) * 100}%"></i></div>
         <div class="sub" style="margin-top:6px" id="tracked">${dur(trackedToday())} tracked today · 86,400 seconds a day for everyone · expires at midnight</div>
       </div>
       ${runningHTML()}
-      <div class="card">
-        <div class="mid">${S.actives.length ? 'Add another' : 'What are you doing?'}</div>
-        <div class="sub">${S.actives.length >= MAX_ACTIVE ? `You are doing ${MAX_ACTIVE} things at once — stop one to start another.` : gated() ? `Health is too low to invest — refill ${lowest(2).map(k => PILLARS[k].name).join(' or ')} first.` : `Looking after yourself earns Tons. Investing pays back later. Useless things just cost.${S.actives.length ? ` (${S.actives.length} of ${MAX_ACTIVE} running)` : ` You can combine up to ${MAX_ACTIVE} at once — like cleaning while you learn.`}`}</div>
+      <div class="card compact">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><b>${S.actives.length ? 'Add another' : 'What are you doing?'}</b><span class="sub" style="margin:0;font-size:12px">${S.actives.length ? `${S.actives.length}/${MAX_ACTIVE} running` : `up to ${MAX_ACTIVE} at once`}</span></div>
+        ${S.actives.length >= MAX_ACTIVE ? `<div class="sub">You are doing ${MAX_ACTIVE} things at once — stop one to start another.</div>` : gated() ? `<div class="sub">Health is too low to invest — refill ${lowest(2).map(k => PILLARS[k].name).join(' or ')} first.</div>` : ''}
         ${S.actives.length >= MAX_ACTIVE ? '' : `${group('care', 'Look after yourself · earns')}${group('invest', 'Invest · pays back later')}${group('useless', 'Spend · no return')}${group('neutral', 'Just living')}`}
       </div>
       <h2>Where today went</h2>

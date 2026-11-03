@@ -251,3 +251,9 @@ textarea.field{min-height:96px;resize:vertical;line-height:1.4}
 
 .hero .chip{border-color:#16210F;color:#16210F;font-size:13px;padding:6px 12px}
 .hero.debt .chip{border-color:#C9F26B;color:#C9F26B}
+
+.compact .glbl{margin:10px 0 0;font-size:11px}
+.compact .deeds{gap:6px;margin-top:6px}
+.compact .deedbtn{padding:7px 12px;gap:6px;font-size:14px;flex-wrap:nowrap}
+.compact .deedbtn .dot{width:9px;height:9px}
+.compact .deedbtn em{font-size:11px;margin-left:0;white-space:nowrap}
