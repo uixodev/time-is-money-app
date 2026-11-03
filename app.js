@@ -5,7 +5,7 @@
 (() => {
   'use strict';
   const KEY = 'tick.v1';
-  const VERSION = 'v32';   // bump with the ?v= number in index.html so browsers fetch fresh files
+  const VERSION = 'v33';   // bump with the ?v= number in index.html so browsers fetch fresh files
   const DAY = 86400;
   const $ = (s, el = document) => el.querySelector(s);
   // one tonal green family (+ ink) so every deed colour belongs to the brand
@@ -647,14 +647,14 @@
       list += `<div style="display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid rgba(128,128,128,.18)"><span><b>${esc(r.d.name)}</b><br><span class="sub">${esc(why)} · ${time}</span></span><b style="white-space:nowrap">${r.t > 0 ? '+' : '−'}${t1(r.t)}</b></div>`;
     });
     const chip = (k, l) => `<button class="chip" data-hf="${k}" style="margin:0 6px 0 0;${histFilter === k ? 'background:var(--btn-bg);color:var(--btn-fg)' : 'background:none;color:inherit'}">${l}</button>`;
-    openSheet(`<h3>History</h3>
-      <div class="sub">Last 30 days · earned <b>+${t1(inT)}</b> · spent <b>−${t1(outT)}</b></div>
+    openSheet(`<div style="position:sticky;top:-22px;margin:-22px -18px 0;padding:18px 18px 8px;background:var(--bg);z-index:2;display:flex;justify-content:space-between;align-items:center"><h3 style="margin:0">History</h3><button id="x" aria-label="Close" style="width:38px;height:38px;border-radius:50%;border:1.5px solid var(--ink);background:none;color:var(--ink);font-size:22px;line-height:1;cursor:pointer">×</button></div>
+      <div class="sub" style="margin-top:6px">Last 30 days · earned <b>+${t1(inT)}</b> · spent <b>−${t1(outT)}</b></div>
       <div style="margin:10px 0 4px">${chip('all', 'All')}${chip('in', 'Earned')}${chip('out', 'Spent')}</div>
       ${cats ? `<div style="margin-top:10px;font-size:15px;font-weight:700">${histFilter === 'in' ? 'Where you earned' : histFilter === 'out' ? 'Where you spent' : 'Where Tons came from and went'}</div>${cats}` : ''}
       <div style="margin-top:14px;font-size:15px;font-weight:700">${histFilter === 'in' ? 'Every earning' : histFilter === 'out' ? 'Every purchase and cost' : 'Everything, newest first'}</div>
       ${list || '<div class="sub">Nothing here yet.</div>'}
       <button class="btn lime" id="ok" style="margin-top:14px;border:1.5px solid var(--ink)">Close</button>`, w => {
-      $('#ok', w).onclick = closeSheet;
+      $('#ok', w).onclick = closeSheet; $('#x', w).onclick = closeSheet;
       w.querySelectorAll('[data-hf]').forEach(b => b.onclick = () => { const sc = w.firstElementChild.scrollTop; histFilter = b.dataset.hf; ledgerSheet(); const n = $('#sheet').firstElementChild; if (n) n.scrollTop = sc; });
     });
   }
