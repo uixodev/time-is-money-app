@@ -5,7 +5,7 @@
 (() => {
   'use strict';
   const KEY = 'tick.v1';
-  const VERSION = 'v36';   // bump with the ?v= number in index.html so browsers fetch fresh files
+  const VERSION = 'v37';   // bump with the ?v= number in index.html so browsers fetch fresh files
   const DAY = 86400;
   const $ = (s, el = document) => el.querySelector(s);
   // one tonal green family (+ ink) so every deed colour belongs to the brand
@@ -613,12 +613,11 @@
   }
   function runningHTML() {
     const n = S.actives.length; if (!n) return '';
-    if (n === 1) { const a = S.actives[0], d = deedOf(a.deedId); return `<div class="card"><div class="sub"><span class="pulse"></span>${verbOf(d)} <b>${esc(d.name)}</b> · ${rateLbl(d)}</div>${stageHTML(a)}<button class="btn stop" data-stop="${a.id}">Stop</button></div>`; }
+    if (n === 1) { const a = S.actives[0], d = deedOf(a.deedId); return `<div class="card run"><div class="rhead"><div class="sub"><span class="pulse"></span>${verbOf(d)} <b>${esc(d.name)}</b> · ${rateLbl(d)}</div><button class="pbtn" data-stop="${a.id}">Stop</button></div>${stageHTML(a)}</div>`; }
     const stage = window.TickTimers ? `<div class="stage" data-combo="1">${TickTimers.render(comboCtx())}</div>` : '';
-    return `<div class="card"><div class="sub"><span class="pulse"></span>Doing <b>${n} things at once</b></div>${stage}
+    return `<div class="card run"><div class="rhead"><div class="sub"><span class="pulse"></span>Doing <b>${n} things at once</b></div><button class="pbtn" data-act="stopall">Stop all</button></div>${stage}
       <div style="margin-top:6px">${S.actives.map(a => { const d = deedOf(a.deedId), el = elapsedOf(a), t = ticksFor(a, el);
-        return `<div class="row" data-row="${a.id}"><i class="dot" style="background:${d.color}"></i><div class="t"><b>${esc(d.name)}</b><span class="rk">${clock(el)} · ${rateLbl(d)}</span></div><div class="r"><b class="rt">${t >= 0 ? '+' : '−'}${Math.abs(t).toFixed(2)}</b></div><button class="chip" style="margin:0 0 0 8px" data-stop="${a.id}">Stop</button></div>`; }).join('')}</div>
-      <button class="btn stop" data-act="stopall">Stop all</button></div>`;
+        return `<div class="row" data-row="${a.id}"><i class="dot" style="background:${d.color}"></i><div class="t"><b>${esc(d.name)}</b><span class="rk">${clock(el)} · ${rateLbl(d)}</span></div><div class="r"><b class="rt">${t >= 0 ? '+' : '−'}${Math.abs(t).toFixed(2)}</b></div><button class="chip" style="margin:0 0 0 8px" data-stop="${a.id}">Stop</button></div>`; }).join('')}</div></div>`;
   }
   function updateStages() {
     if (!window.TickTimers) return;
