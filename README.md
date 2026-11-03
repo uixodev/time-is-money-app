@@ -26,6 +26,7 @@ Things like *Learn to code* or *Deep work* **cost Tons now** (0.25/min by defaul
 - **Skill** = hours invested, each hour fading **2% a day** without practice.
 - **Dividend** per day = skill × cost rate × 2 — so 1 hour at 0.25/min (15 Tons) pays about 0.5 Tons a day.
 - Break-even takes roughly 30–45 days; keep practising and the dividends keep coming.
+- **You decide when dividends are paid.** They build up all day as "ready to collect"; press **Collect** (Wallet or Invest tab) to move them into your balance. Turn **Auto-pay** on and they go straight in instead. Collecting only moves forward, so two devices can never pay the same dividend twice.
 - The **Invest** tab is your portfolio: dividend/day, invested vs. paid back, return %, break-even estimate, plus a **What if…?** box ("2h learn to code").
 
 ## Useless deeds

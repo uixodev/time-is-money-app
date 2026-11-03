@@ -5,7 +5,7 @@
 (() => {
   'use strict';
   const KEY = 'tick.v1';
-  const VERSION = 'v40';   // bump with the ?v= number in index.html so browsers fetch fresh files
+  const VERSION = 'v41';   // bump with the ?v= number in index.html so browsers fetch fresh files
   const DAY = 86400;
   const $ = (s, el = document) => el.querySelector(s);
   // one tonal green family (+ ink) so every deed colour belongs to the brand
@@ -90,6 +90,8 @@
       S.balanceV = 2;
     }
     // v31 fair start (once, same id on every device): the balance at the START of today is the welcome Tons, so today's earnings add on top of it
+    if (typeof S.divCollected !== 'number') S.divCollected = S.entries.reduce((a, e) => a + (e.div ? e.ticks : 0), 0);   // v40: dividends you've already received count as collected
+    if (typeof S.divAuto !== 'boolean') S.divAuto = false;
     if (!Array.isArray(S.tomb)) S.tomb = [];
     if (S.entries.some(e => e.id === 'adjust:v30')) { S.entries = S.entries.filter(e => e.id !== 'adjust:v30'); if (!S.tomb.includes('adjust:v30')) S.tomb.push('adjust:v30'); }   // the v30 reset was dated "now" and hid today's earnings
     if (!S.entries.some(e => e.id === 'adjust:v31')) {
@@ -243,7 +245,11 @@
     S.actives.forEach(a => { const t = activeTicksOf(a, d0, d1); if (t > 0) earned += t; else spent -= t; });
     return { earned, spent };
   };
-  const ticksSaved = () => S.gift + S.entries.reduce((a, e) => a + e.ticks, 0);   // without the running deed
+  // Dividends build up as "accrued"; only what you've collected counts toward the balance (or everything, with auto-pay on)
+  const divAccrued = () => S.entries.reduce((a, e) => a + (e.div ? e.ticks : 0), 0);
+  const divCollected = () => Math.min(S.divCollected || 0, divAccrued());
+  const divPending = () => Math.max(0, divAccrued() - divCollected());
+  const ticksSaved = () => S.gift + S.entries.reduce((a, e) => a + (e.div ? 0 : e.ticks), 0) + divCollected();   // without the running deed
   const balance = () => ticksSaved() + activeTicks(0, Infinity);                   // can be negative = debt
   // average Tons earned per day (health income + dividends) over the days you've used the app — for "about N days" estimates
   const avgDailyIncome = () => {
@@ -273,7 +279,12 @@
       deeds.forEach(d => { const amt = skillHours(d.id, mid) * d.rate * DIV_PER_RATE * days; if (amt > 1e-6) { addDividend(d.id, mid, amt); added = true; } });
       from = to;
     }
+    if (S.divAuto) S.divCollected = divAccrued();
     S.divAt = now; save(!added);
+  }
+  function collectDividends() {
+    const amt = divPending(); if (amt < 0.005) { flash('Nothing to collect yet'); return; }
+    S.divCollected = divAccrued(); save(); render(); confetti(); chime(); flash(`+${t1(amt)} Tons collected 💰`);
   }
   function investStats(d) {
     let hours = 0, spent = 0, returned = 0;
@@ -504,7 +515,8 @@
     const ID = x => T(x) && /^[\w:.\-]{1,80}$/.test(x), TXT = (x, n) => (T(x) ? x.slice(0, n) : '');
     const KINDS = ['care', 'invest', 'useless', 'neutral', 'hard'];
     const out = { onboarded: !!d.onboarded };
-    ['created', 'gift', 'divAt'].forEach(k => { if (N(d[k])) out[k] = d[k]; });
+    ['created', 'gift', 'divAt', 'divCollected'].forEach(k => { if (N(d[k])) out[k] = d[k]; });
+    if (typeof d.divAuto === 'boolean') out.divAuto = d.divAuto;
     out.deeds = A(d.deeds).filter(x => x && ID(x.id) && T(x.name) && KINDS.includes(x.kind) &&
       (x.kind === 'care' ? Object.prototype.hasOwnProperty.call(PILLARS, x.pillar) && ['timer', 'tap'].includes(x.mode) && N(x.pts) && x.pts > 0 : x.kind === 'neutral' || N(x.rate)))
       .map(x => ({ id: x.id, name: TXT(x.name, 40), color: PALETTE.includes(x.color) ? x.color : PALETTE[0], kind: x.kind, rate: N(x.rate) ? x.rate : 0,
@@ -685,13 +697,11 @@
   function incomingHTML() {
     const [d0, d1] = dayRange(0), invs = S.deeds.filter(d => d.kind === 'invest').map(d => ({ d, perDay: dividendPerDay(d) })).filter(x => x.perDay > 0.005).sort((a, b) => b.perDay - a.perDay);
     if (!invs.length) return `<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><b>Incoming dividends</b><div class="sub" style="margin:2px 0 0">Invest time in something and it pays you Tons every day.</div></div><button class="pbtn" data-pick="invest">Invest</button></div></div>`;
-    const perDay = invs.reduce((a, x) => a + x.perDay, 0), paid = S.entries.reduce((a, e) => a + (e.div && e.ts >= d0 && e.ts < d1 ? e.ticks : 0), 0);
-    const pct = Math.min(100, perDay > 0 ? (paid / perDay) * 100 : 0);
+    const perDay = invs.reduce((a, x) => a + x.perDay, 0), pend = divPending();
     return `<div class="card">
       <div class="sechead" style="margin:0 0 8px"><b>Incoming dividends</b><button class="link" data-tab="invest">Invest ›</button></div>
-      <div style="display:flex;justify-content:space-between;align-items:baseline"><span class="mid" style="font-size:26px">+${tk}${t1(perDay)}<small> / day</small></span><span class="sub" style="margin:0">${tk}${t1(paid)} paid so far today</span></div>
-      <div class="bar"><i style="width:${pct}%"></i></div>
-      <div class="sub" style="margin-top:6px">Paid out a little at a time, about +${(perDay / 24).toFixed(2)} an hour — roughly +${t1(perDay * 7)} over the next week.</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><span class="mid" style="font-size:26px">${S.divAuto ? '' : '+'}${tk}${t1(S.divAuto ? perDay : pend)}<small>${S.divAuto ? ' / day' : ''}</small></span><div class="sub" style="margin:0">${S.divAuto ? 'Paid straight into your balance' : 'waiting for you · building up ≈ +' + t1(perDay) + ' / day'}</div></div>
+        ${S.divAuto ? '' : `<button class="pbtn" data-act="collect" ${pend < 0.005 ? 'disabled style="opacity:.4"' : ''}>Collect</button>`}</div>
       ${invs.slice(0, 3).map(x => `<div class="row" style="padding:8px 0 0"><i class="dot" style="background:${x.d.color}"></i><div class="t"><b>${esc(x.d.name)}</b></div><div class="r"><b>+${t1(x.perDay)}/day</b></div></div>`).join('')}
     </div>`;
   }
@@ -818,6 +828,8 @@
         ${divChart()}
         <div class="hrow"><span>Last 14 days</span><span>per day · fades 2% without practice</span></div>
       </div>
+      <div class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><div class="sub" style="margin:0">${S.divAuto ? 'Auto-pay is on' : 'Ready to collect'}</div><div class="mid" style="font-size:26px">${S.divAuto ? 'Paid as it builds' : '+' + tk + t1(divPending())}</div></div>${S.divAuto ? '' : `<button class="pbtn" data-act="collect" ${divPending() < 0.005 ? 'disabled style="opacity:.4"' : ''}>Collect</button>`}</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;gap:10px"><span class="sub" style="margin:0">${S.divAuto ? 'Dividends go straight into your balance.' : 'Dividends build up until you collect them.'}</span><button class="chip" style="margin:0" data-act="autopay">Auto-pay: ${S.divAuto ? 'on' : 'off'}</button></div></div>
       <div class="grid2">
         <div class="card"><div class="sub" style="margin:0">Invested</div><div class="mid" style="font-size:26px">${tk}${num(spent)}</div></div>
         <div class="card"><div class="sub" style="margin:0">Paid back</div><div class="mid" style="font-size:26px">${tk}${num(returned)}</div></div>
@@ -1126,6 +1138,8 @@
       case 'about': aboutSheet(false); break;
       case 'account': accountSheet(); break;
       case 'backup': backupSheet(); break;
+      case 'collect': collectDividends(); break;
+      case 'autopay': S.divAuto = !S.divAuto; if (S.divAuto) S.divCollected = divAccrued(); save(); render(); flash(S.divAuto ? 'Auto-pay on — dividends go straight to your balance' : 'Auto-pay off — collect when you want'); break;
       case 'ledger': ledgerSheet(); break;
       case 'writenote': writeNoteSheet(); break;
       case 'adddeed': deedSheet(); break;
@@ -1198,6 +1212,7 @@
     out.actives = byId(l.actives, c.actives, a => a).slice(0, MAX_ACTIVE);   // running sessions: unioned by id; a stopped one is in the tombstones
     delete out.active; delete out.lastStopped;
     out.divAt = Math.max(l.divAt || 0, c.divAt || 0) || Date.now();
+    if (typeof l.divCollected === 'number' || typeof c.divCollected === 'number') out.divCollected = Math.max(l.divCollected || 0, c.divCollected || 0);   // collecting can only move forward, so two devices never pay twice
     out.sound = l.sound; out.chat = l.chat || c.chat || [];
     return out;
   }
