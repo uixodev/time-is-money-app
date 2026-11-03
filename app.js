@@ -5,7 +5,7 @@
 (() => {
   'use strict';
   const KEY = 'tick.v1';
-  const VERSION = 'v44';   // bump with the ?v= number in index.html so browsers fetch fresh files
+  const VERSION = 'v45';   // bump with the ?v= number in index.html so browsers fetch fresh files
   const DAY = 86400;
   const $ = (s, el = document) => el.querySelector(s);
   // one tonal green family (+ ink) so every deed colour belongs to the brand
@@ -25,6 +25,7 @@
   const MAX_ACTIVE = 3;           // deeds you can run at the same time
   const HEALTH_MIN = 40;          // below this overall Health you can't start an investment
   const FADE = 0.98;              // skills fade 2% a day without practice
+  const SHOP_CATS = ['Food', 'Fun', 'Rest', 'Self-care', 'Learning', 'Other'];   // what an item in the shop is for
   const GEM_PER_DIV = 5;          // investments pay in GEMS (whole numbers): 1 Ton of dividend = 5 gems
   const DIV_PER_RATE = 2;         // dividend: Tons/day per effective hour, per Tons/min of cost (0.5/min → 1 Tons/day per hour)
   const DEBT_SURCHARGE = 1.5;     // useless time costs +50% while you're in debt
@@ -99,6 +100,13 @@
       S.goals.forEach(g => { g.target = Math.max(1, Math.round(g.target / 5)); g.mod = Date.now(); });   // goals are now priced in gems
       S.gemsV = 1;
     }
+    if (S.shopV !== 1) {                                               // v45: Goals became a Shop. Old goals are "saving for" items; a few starter items are added once.
+      const dead = S.tomb || [];
+      S.goals.forEach(g => { if (g.pin === undefined) g.pin = true; if (!g.cat) g.cat = 'Other'; });
+      [['shop-coffee', 'Coffee out', 5, 'Food'], ['shop-treat', 'Favourite treat', 8, 'Food'], ['shop-movie', 'Movie night', 20, 'Fun'], ['shop-game', 'Gaming session', 10, 'Fun'], ['shop-bath', 'Long hot bath', 12, 'Self-care'], ['shop-lazy', 'Lazy morning', 15, 'Rest']]
+        .forEach(([id, name, target, cat]) => { if (!S.goals.some(g => g.id === id) && !dead.includes(id)) S.goals.push({ id, name, target, cat, pin: false, created: Date.now(), mod: Date.now() }); });
+      S.shopV = 1;
+    }
     if (!Array.isArray(S.tomb)) S.tomb = [];
     if (S.entries.some(e => e.id === 'adjust:v30')) { S.entries = S.entries.filter(e => e.id !== 'adjust:v30'); if (!S.tomb.includes('adjust:v30')) S.tomb.push('adjust:v30'); }   // the v30 reset was dated "now" and hid today's earnings
     if (!S.entries.some(e => e.id === 'adjust:v31')) {
@@ -153,7 +161,7 @@
     wallet: '<rect x="3" y="6" width="18" height="14" rx="3.5"/><path d="M3 10V8a3 3 0 0 1 3-3h10"/><circle cx="16.5" cy="13" r="1.1" fill="currentColor"/>',
     deeds: '<circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.8 2.8L16 9.6"/>',
     invest: '<path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/>',
-    goals: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1" fill="currentColor"/>',
+    goals: '<path d="M5 8h14l-1 12H6L5 8z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/>',
     history: '<path d="M5 20V11M12 20V4M19 20v-6"/>',
     earn: '<path d="M12 5v14M5 12h14"/>',
     spend: '<path d="M7 17L17 7M8 7h9v9"/>',
@@ -475,15 +483,33 @@
     const g = S.goals.find(x => x.id === id); if (!g) return;
     if (gems() < g.target) { const n = g.target - gems(); flash(`You need ${gemN(n)} more gem${n === 1 ? '' : 's'}`); return; }
     const rid = `reward:${uid()}`, ts = Date.now();
-    const rec = { id: rid, name: g.name, cost: g.target, cur: 'gem', ts }; S.bought.unshift(rec);
-    S.goals = S.goals.filter(x => x.id !== id); gone(id);
+    const rec = { id: rid, name: g.name, cost: g.target, cur: 'gem', cat: g.cat || 'Other', ts }; S.bought.unshift(rec);
+    if (g.pin) { S.goals = S.goals.filter(x => x.id !== id); gone(id); }   // a goal you saved up for is done; shop items stay for next time
     save(); render(); confetti(el); chime();
     rewardSummary(rec, g, gems());
+  }
+  // spend gems on anything, without making it an item first
+  function spendAnySheet() {
+    openSheet(`<h3>Treat myself</h3><div class="sub">Spend gems on whatever you like — it's yours to decide.</div>
+      <label class="l">What for?</label><input class="field" id="sn" maxlength="30" placeholder="Pizza night">
+      <label class="l">Gems</label><input class="field" id="sg" type="number" inputmode="numeric" step="1" min="1" placeholder="10">
+      <label class="l">Category</label><select class="field sel" id="sc">${SHOP_CATS.map(c => `<option>${c}</option>`).join('')}</select>
+      <div class="sub" style="margin-top:8px">You have ${gm} ${gemN(gems())}.</div>
+      <button class="btn" id="ok">Spend</button><button class="link" id="skip">Cancel</button>`, w => {
+      $('#skip', w).onclick = closeSheet;
+      $('#ok', w).onclick = () => {
+        const name = $('#sn', w).value.trim(), n = Math.round(parseFloat($('#sg', w).value)), cat = $('#sc', w).value;
+        if (!name) { $('#sn', w).focus(); return; } if (!(n > 0)) { $('#sg', w).focus(); return; }
+        if (n > gems()) { flash(`You only have ${gemN(gems())} gem${gems() === 1 ? '' : 's'}`); return; }
+        const rec = { id: `reward:${uid()}`, name, cost: n, cur: 'gem', cat, ts: Date.now() }; S.bought.unshift(rec);
+        save(); closeSheet(); render(); confetti(); chime(); rewardSummary(rec, null, gems());
+      };
+    });
   }
 
   // ---------- ui state ----------
   let tab = 'wallet';
-  const TABS = [['wallet', 'Wallet'], ['deeds', 'Deeds'], ['invest', 'Invest'], ['goals', 'Goals'], ['history', 'History']];
+  const TABS = [['wallet', 'Wallet'], ['deeds', 'Deeds'], ['invest', 'Invest'], ['goals', 'Shop'], ['history', 'History']];
   const renderTabs = () => { $('#tabs').innerHTML = TABS.map(([k, l]) => `<button class="tab ${tab === k ? 'on' : ''}" data-tab="${k}"><span class="ic">${icon(k)}</span>${l}</button>`).join(''); };
 
   // ---------- sheet ----------
@@ -535,7 +561,7 @@
     const ID = x => T(x) && /^[\w:.\-]{1,80}$/.test(x), TXT = (x, n) => (T(x) ? x.slice(0, n) : '');
     const KINDS = ['care', 'invest', 'useless', 'neutral', 'hard'];
     const out = { onboarded: !!d.onboarded };
-    ['created', 'gift', 'divAt', 'divCollected', 'divLegacy', 'gemsCollected', 'gemsV'].forEach(k => { if (N(d[k])) out[k] = d[k]; });
+    ['created', 'gift', 'divAt', 'divCollected', 'divLegacy', 'gemsCollected', 'gemsV', 'shopV'].forEach(k => { if (N(d[k])) out[k] = d[k]; });
     if (typeof d.divAuto === 'boolean') out.divAuto = d.divAuto;
     out.deeds = A(d.deeds).filter(x => x && ID(x.id) && T(x.name) && KINDS.includes(x.kind) &&
       (x.kind === 'care' ? Object.prototype.hasOwnProperty.call(PILLARS, x.pillar) && ['timer', 'tap'].includes(x.mode) && N(x.pts) && x.pts > 0 : x.kind === 'neutral' || N(x.rate)))
@@ -547,8 +573,8 @@
       .map(n => ({ id: n.id, ts: n.ts, kind: ['reward', 'care', 'general'].includes(n.kind) ? n.kind : 'invest', ...(ID(n.deedId) ? { deedId: n.deedId } : {}), ...(ID(n.refId) ? { refId: n.refId } : {}),
         title: TXT(n.title, 80), line: TXT(n.line, 160), text: TXT(n.text, 600), rating: Number.isInteger(n.rating) && n.rating >= 1 && n.rating <= 5 ? n.rating : 0, ...(N(n.edited) ? { edited: n.edited } : {}) }));
     out.goals = A(d.goals).filter(g => g && ID(g.id) && T(g.name) && N(g.target) && g.target > 0)
-      .map(g => ({ id: g.id, name: TXT(g.name, 40), target: g.target, ...(N(g.created) ? { created: g.created } : {}), ...(N(g.mod) ? { mod: g.mod } : {}) }));
-    out.bought = A(d.bought).filter(b => b && ID(b.id) && T(b.name) && N(b.cost) && N(b.ts)).map(b => ({ id: b.id, name: TXT(b.name, 40), cost: b.cost, ts: b.ts, ...(b.cur === 'gem' ? { cur: 'gem' } : {}) }));
+      .map(g => ({ id: g.id, name: TXT(g.name, 40), target: g.target, ...(N(g.created) ? { created: g.created } : {}), ...(N(g.mod) ? { mod: g.mod } : {}), ...(T(g.cat) ? { cat: TXT(g.cat, 20) } : {}), ...(typeof g.pin === 'boolean' ? { pin: g.pin } : {}) }));
+    out.bought = A(d.bought).filter(b => b && ID(b.id) && T(b.name) && N(b.cost) && N(b.ts)).map(b => ({ id: b.id, name: TXT(b.name, 40), cost: b.cost, ts: b.ts, ...(b.cur === 'gem' ? { cur: 'gem' } : {}), ...(T(b.cat) ? { cat: TXT(b.cat, 20) } : {}) }));
     out.tomb = A(d.tomb).filter(ID);
     if (d.balanceV === 2) out.balanceV = 2;
     out.chat = A(d.chat).filter(c => c && (c.from === 'me' || c.from === 'bot') && T(c.text)).map(c => ({ from: c.from, text: TXT(c.text, 600) })).slice(-40);
@@ -711,7 +737,7 @@
     const full = S.actives.length >= MAX_ACTIVE;
     openSheet(`<div style="display:flex;justify-content:space-between;align-items:center"><h3 style="margin:0">${name}</h3><button id="x" aria-label="Close" style="width:38px;height:38px;border-radius:50%;border:1.5px solid var(--ink);background:none;color:var(--ink);font-size:22px;line-height:1;cursor:pointer">×</button></div>
       <div class="sub" style="margin-bottom:6px">${full ? `You are doing ${MAX_ACTIVE} things at once — stop one to start another.` : kind === 'invest' && gated() ? `Health is too low to invest — refill ${lowest(2).map(k => PILLARS[k].name).join(' or ')} first.` : sub}</div>
-      <div class="compact">${group(kind, '')}${kind === 'care' ? group('neutral', 'Just living · time only') : ''}</div>`, w => { $('#x', w).onclick = closeSheet; });
+      <div class="compact">${group(kind, '')}${kind === 'care' ? group('neutral', 'Just living · time only') : ''}</div>${kind === 'useless' ? `<div style="margin-top:12px"><div class="sub" style="margin:0 0 6px">Edit a spend deed</div>${S.deeds.filter(x => x.kind === 'useless').map(x => `<button class="chip" data-edit="${x.id}">${esc(x.name)} ✎</button>`).join('')}<button class="chip" data-act="adddeed">+ New</button></div>` : ''}`, w => { $('#x', w).onclick = closeSheet; });
   }
   const recentHTML = () => {
     const rows = S.entries.filter(e => !isAdjust(e) && e.ticks).sort((a, b) => b.ts - a.ts).slice(0, 6);
@@ -735,11 +761,11 @@
   }
   // the goal you're closest to — with the Buy button right here
   function nextGoalHTML() {
-    if (!S.goals.length) return '';
-    const have = gems(), g = [...S.goals].sort((a, b) => (a.target - have) - (b.target - have))[0], need = g.target - have, can = need <= 0;
+    const sv = S.goals.filter(x => x.pin); if (!sv.length) return '';
+    const have = gems(), g = [...sv].sort((a, b) => (a.target - have) - (b.target - have))[0], need = g.target - have, can = need <= 0;
     const inc = S.deeds.filter(d => d.kind === 'invest').reduce((a, d) => a + gemsPerDay(d), 0);
     return `<div class="card">
-      <div class="sechead" style="margin:0 0 8px"><b>Next reward</b><button class="link" data-tab="goals">All goals ›</button></div>
+      <div class="sechead" style="margin:0 0 8px"><b>Saving up for</b><button class="link" data-tab="goals">Shop ›</button></div>
       <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px"><b style="font-size:17px">${esc(g.name)}</b><span class="sub" style="margin:0">${gm} ${gemN(Math.min(have, g.target))} of ${gemN(g.target)}</span></div>
       <div class="bar"><i style="width:${Math.max(0, Math.min(100, (have / g.target) * 100))}%"></i></div>
       <div class="sub" style="margin-top:6px">${can ? 'You can afford it 🎉' : `${gemN(need)} gem${need === 1 ? '' : 's'} to go${inc > 0.05 ? ` · about ${Math.max(1, Math.ceil(need / inc))} day${Math.ceil(need / inc) <= 1 ? '' : 's'} at your pace` : ' · invest to earn gems'}`}</div>
@@ -787,7 +813,7 @@
     };
     return `
       ${head('Deeds', '<button class="icon-btn" data-act="adddeed" aria-label="Add deed">+</button>')}
-      ${grp('care', 'Care · refill your Health, earn Tons')}${grp('invest', 'Investments · cost Tons, pay gems')}${grp('useless', 'Useless · cost Tons')}${grp('neutral', 'Just living')}
+      ${grp('care', 'Care · refill your Health, earn Tons')}${grp('invest', 'Investments · cost Tons, pay gems')}${grp('neutral', 'Just living')}
       <button class="btn lime" data-act="logpast" style="border:1.5px solid var(--ink)">+ Log time I already spent</button>`;
   }
 
@@ -883,21 +909,28 @@
 
   function viewGoals() {
     const have = gems(), inc = S.deeds.filter(d => d.kind === 'invest').reduce((a, d) => a + gemsPerDay(d), 0);
+    const saving = S.goals.filter(g => g.pin), shop = S.goals.filter(g => !g.pin);
+    const savingCard = (g, i) => {
+      const pct = Math.min(100, (have / g.target) * 100), cls = ['peach', 'mint', 'sky'][i % 3], need = g.target - have, can = need <= 0;
+      return `<div class="card ${cls}">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><button class="gname mid" data-edit-goal="${g.id}" aria-label="Edit ${esc(g.name)}">${esc(g.name)}</button><button class="x edit" data-edit-goal="${g.id}" aria-label="Edit ${esc(g.name)}">✎</button></div>
+        <div class="big">${gm} ${gemN(Math.min(have, g.target))}</div>
+        <div class="sub">of ${gm} ${gemN(g.target)} · ${can ? 'You can afford it 🎉' : `${gemN(need)} gem${need === 1 ? '' : 's'} to go${inc > 0.05 ? ` ≈ ${Math.max(1, Math.ceil(need / inc))} day${Math.ceil(need / inc) <= 1 ? '' : 's'} at your pace` : ' — invest to earn gems'}`}</div>
+        <div class="bar"><i style="width:${pct}%"></i></div>
+        <button class="btn" data-buy="${g.id}" ${can ? '' : 'disabled'}>${can ? `Buy it · ${gm} ${gemN(g.target)}` : 'Keep investing'}</button></div>`;
+    };
+    const cats = [...SHOP_CATS, ...new Set(shop.map(g => g.cat).filter(c => c && !SHOP_CATS.includes(c)))].filter(c => shop.some(g => (g.cat || 'Other') === c));
+    const row = g => { const can = have >= g.target; return `<div class="row"><div class="t"><b>${esc(g.name)}</b><span>${gm} ${gemN(g.target)}${can ? '' : ` · ${gemN(g.target - have)} more`}</span></div>
+      <button class="pbtn" data-buy="${g.id}" ${can ? '' : 'disabled style="opacity:.4"'}>Buy</button><button class="x edit" data-edit-goal="${g.id}" aria-label="Edit ${esc(g.name)}">✎</button></div>`; };
     return `
-      ${head('Goals', '<button class="icon-btn" data-act="addgoal" aria-label="Add goal">+</button>')}
-      <div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><div class="sub" style="margin:0">Your gems</div><div class="mid" style="font-size:30px">${gm} ${gemN(have)}</div></div>${gemsPending() >= 1 ? `<button class="pbtn" data-act="collect">Collect +${gemN(gemsPending())}</button>` : ''}</div>
-      <div class="sub" style="margin:-4px 0 12px">Rewards you buy with gems. Investments pay the gems.</div>
-      ${S.goals.length ? S.goals.map((g, i) => {
-        const pct = Math.min(100, (have / g.target) * 100), cls = ['peach', 'mint', 'sky'][i % 3], need = g.target - have, can = need <= 0;
-        return `<div class="card ${cls}">
-          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><button class="gname mid" data-edit-goal="${g.id}" aria-label="Edit ${esc(g.name)}">${esc(g.name)}</button><button class="x edit" data-edit-goal="${g.id}" aria-label="Edit ${esc(g.name)}">✎</button></div>
-          <div class="big">${gm} ${gemN(Math.min(have, g.target))}</div>
-          <div class="sub">of ${gm} ${gemN(g.target)} · ${can ? 'You can afford it 🎉' : `${gemN(need)} gem${need === 1 ? '' : 's'} to go${inc > 0.05 ? ` ≈ ${Math.max(1, Math.ceil(need / inc))} day${Math.ceil(need / inc) <= 1 ? '' : 's'} at your pace` : ' — invest to earn gems'}`}</div>
-          <div class="bar"><i style="width:${pct}%"></i></div>
-          <button class="btn" data-buy="${g.id}" ${can ? '' : 'disabled'}>${can ? `Buy it · ${gm} ${gemN(g.target)}` : 'Keep investing'}</button></div>`;
-      }).join('') : '<div class="card"><div class="empty">No goals yet.<br>Tap + and name a guilt-free reward, like “Gaming weekend”.</div></div>'}
-      ${S.bought.length ? `<h2>Rewards you've bought</h2><div class="card">${S.bought.slice(0, 20).map(b => `
-        ${(() => { const n = S.notes.find(x => x.refId === b.id); return `<div class="row"><div class="t"><b>${esc(b.name)}</b><span>${new Date(b.ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}${n && n.rating ? ' · ' + stars(n.rating) : ''}</span>${n && n.text ? `<div class="jtext" style="font-style:italic;color:var(--muted);font-size:13px">“${esc(n.text)}”</div>` : ''}</div>
+      ${head('Shop', '<button class="icon-btn" data-act="addgoal" aria-label="Add shop item">+</button>')}
+      <div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><div class="sub" style="margin:0">Your gems</div><span class="gv">${gm}<b>${gemN(have)}</b></span></div>${gemsPending() >= 1 ? `<button class="pbtn" data-act="collect">Collect +${gemN(gemsPending())}</button>` : ''}</div>
+      <button class="btn lime" data-act="spendany" style="border:1.5px solid var(--ink);margin-bottom:6px">Treat myself — spend on anything</button>
+      ${saving.length ? `<h2>Saving up for</h2>${saving.map(savingCard).join('')}` : ''}
+      ${cats.map(c => `<div class="glbl" style="margin:16px 2px 8px">${esc(c)}</div><div class="card" style="padding:4px 14px">${shop.filter(g => (g.cat || 'Other') === c).map(row).join('')}</div>`).join('')}
+      ${!saving.length && !shop.length ? '<div class="card"><div class="empty">The shop is empty.<br>Tap + to add something you would like to buy with gems.</div></div>' : ''}
+      ${S.bought.length ? `<h2>Bought</h2><div class="card">${S.bought.slice(0, 20).map(b => `
+        ${(() => { const n = S.notes.find(x => x.refId === b.id); return `<div class="row"><div class="t"><b>${esc(b.name)}</b><span>${b.cat ? esc(b.cat) + ' · ' : ''}${new Date(b.ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}${n && n.rating ? ' · ' + stars(n.rating) : ''}</span>${n && n.text ? `<div class="jtext" style="font-style:italic;color:var(--muted);font-size:13px">“${esc(n.text)}”</div>` : ''}</div>
         <div class="r"><b>${b.cur === 'gem' ? gm : tk}−${num(b.cost)}</b></div>${n ? `<button class="x edit" data-edit-note="${n.id}" aria-label="Edit note">✎</button>` : `<button class="chip" style="margin:0" data-add-reward-note="${b.id}">+ note</button>`}</div>`; })()}`).join('')}</div>` : ''}`;
   }
 
@@ -1115,19 +1148,21 @@
   }
   function goalSheet(id) {
     const ed = id ? S.goals.find(g => g.id === id) : null;
-    openSheet(`<h3>${ed ? 'Edit goal' : 'New goal'}</h3><div class="sub">A guilt-free reward to buy with gems.</div>
-      <label class="l">Reward</label><input class="field" id="gn" maxlength="30" placeholder="Gaming weekend" value="${ed ? esc(ed.name) : ''}">
-      <label class="l">Gems needed</label><input class="field" id="gt" type="number" inputmode="numeric" step="1" min="1" placeholder="30" value="${ed ? ed.target : ''}">
-      <button class="btn" id="ok">${ed ? 'Save changes' : 'Create goal'}</button>
-      ${ed ? '<button class="link" id="del">Delete this goal</button>' : ''}`, w => {
+    openSheet(`<h3>${ed ? 'Edit item' : 'New shop item'}</h3><div class="sub">Something you can buy with gems.</div>
+      <label class="l">Name</label><input class="field" id="gn" maxlength="30" placeholder="Gaming weekend" value="${ed ? esc(ed.name) : ''}">
+      <label class="l">Price in gems</label><input class="field" id="gt" type="number" inputmode="numeric" step="1" min="1" placeholder="30" value="${ed ? ed.target : ''}">
+      <label class="l">What is it for?</label><select class="field sel" id="gc">${SHOP_CATS.map(c => `<option ${((ed && ed.cat) || 'Fun') === c ? 'selected' : ''}>${c}</option>`).join('')}</select>
+      <label class="switch" style="margin-top:12px"><input type="checkbox" id="gp" ${ed ? (ed.pin ? 'checked' : '') : ''}><span>I'm saving up for this (shows progress, removed once bought)</span></label>
+      <button class="btn" id="ok">${ed ? 'Save changes' : 'Add to shop'}</button>
+      ${ed ? '<button class="link" id="del">Delete this item</button>' : ''}`, w => {
       $('#ok', w).onclick = () => {
-        const name = $('#gn', w).value.trim(), t = Math.round(parseFloat($('#gt', w).value));
+        const name = $('#gn', w).value.trim(), t = Math.round(parseFloat($('#gt', w).value)), cat = $('#gc', w).value, pin = $('#gp', w).checked;
         if (!name) { $('#gn', w).focus(); return; } if (!(t > 0)) { $('#gt', w).focus(); return; }
-        if (ed) Object.assign(ed, { name, target: t, mod: Date.now() }); else S.goals.push({ id: uid(), name, target: t, created: Date.now(), mod: Date.now() });
+        if (ed) Object.assign(ed, { name, target: t, cat, pin, mod: Date.now() }); else S.goals.push({ id: uid(), name, target: t, cat, pin, created: Date.now(), mod: Date.now() });
         save(); closeSheet(); render();
       };
       const del = $('#del', w);
-      if (del) del.onclick = () => { if (confirm(`Delete the goal “${ed.name}”?`)) { S.goals = S.goals.filter(g => g.id !== ed.id); gone(ed.id); save(); closeSheet(); render(); } };
+      if (del) del.onclick = () => { if (confirm(`Delete “${ed.name}”?`)) { S.goals = S.goals.filter(g => g.id !== ed.id); gone(ed.id); save(); closeSheet(); render(); } };
       $('#gn', w).focus();
     });
   }
@@ -1178,6 +1213,7 @@
       case 'adddeed': deedSheet(); break;
       case 'logpast': logPastSheet(); break;
       case 'addgoal': goalSheet(); break;
+      case 'spendany': spendAnySheet(); break;
       case 'addinvest': deedSheet(null, 'invest'); break;
     }
   });

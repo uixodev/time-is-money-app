@@ -23,7 +23,7 @@ A pillar that is already full pays nothing, so nothing can be farmed. Looking af
 
 - **Tons** are your everyday money: earned by looking after yourself, spent on investing and useless time. They can be fractions and can go negative.
 - **Gems** are the investment currency: **whole numbers only**, counted one by one. **Investments pay gems** (1 Ton of dividend = 5 gems; a gem arrives when a whole one has built up). They build up until you press **Collect** (or turn on **Auto-pay**).
-- **Goals are bought with gems**, not Tons. Old goals were converted once (÷5, minimum 1 gem) — edit them any time. Rewards you bought before stay recorded in Tons.
+- **The Shop is paid in gems**, not Tons. Old goals were converted once (÷5, minimum 1 gem) — edit them any time. Rewards you bought before stay recorded in Tons.
 - Dividends you had already collected in Tons stay in your Tons balance; ones that were still waiting became gems.
 
 ## Investments
@@ -38,7 +38,7 @@ Things like *Learn to code* or *Deep work* **cost Tons now** (0.25/min by defaul
 
 ## Useless deeds
 
-Scrolling, gaming… they just cost Tons (1–5/min) and return nothing. Investments are deliberately cheaper than useless time.
+Scrolling, gaming… (found under **Spend** on the Wallet, no longer listed in the Deeds tab) they just cost Tons (1–5/min) and return nothing. Investments are deliberately cheaper than useless time.
 
 ## Where did my Tons go?
 
@@ -88,7 +88,7 @@ The currency is **Tons**. Its sign is a **slanted-strike T**: a T struck by a sl
 - **Wallet** – Tons balance, coin purse, a live countdown to midnight (ticks every second), what are you doing, where today went. (Health still runs underneath; ask "how is my health?" in the Invest tab to see the pillars.)
 - **Deeds** – care / investment / useless / living deeds. Add, edit (✎) or delete; log time you already spent.
 - **Invest** – your portfolio and the What-if calculator.
-- **Goals** – rewards to save Tons for. Edit (✎), then **Buy it** — with confetti and a chime (switch sounds off in the sign button).
+- **Shop** – spend your gems. Items are grouped by what they're for (Food, Fun, Rest, Self-care, Learning, Other); tap **Buy**, or **Treat myself** to spend on anything without making an item first. Items you're *saving up for* sit at the top with a progress bar and disappear once bought; ordinary shop items stay so you can buy them again. Edit (✎) any item to change its price, category or whether you're saving for it. Buying plays confetti and a chime (switch sounds off in the sign button).
 - **History** – switch between 7 and 30 days: net Tons, care streak, best day, averages, an earned-vs-spent chart, *where your Tons went* (care, dividends, investing, useless time, rewards), *where your time went*, your Journal and day by day.
 
 Dark / light: tap the **moon/sun** button in any screen's header to switch, or choose **Auto / Light / Dark** in the sign button menu (Auto follows your phone). The choice is remembered per device.
