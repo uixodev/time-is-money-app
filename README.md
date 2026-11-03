@@ -14,6 +14,7 @@ You earn Tons by refilling what has drained: **Tons = health points refilled × 
 A pillar that is already full pays nothing, so nothing can be farmed. A day of proper upkeep earns roughly 230 Tons.
 
 - **Care deeds are labelled in Tons, not percentages.** A **timer** deed pays a rate in **Tons per second** while it runs (Workout `+0.02 Tons/sec`, Sleep `+0.002`, Quran `+0.01`…); a **check-in** pays a lump sum (Meal `+12.3 Tons each`, Prayer `+9 Tons each`). Behind the scenes each pillar still drains and refills (0–100%), which is why a full pillar stops paying and why very low Health blocks investing — but you only ever see and set Tons.
+- **How much a pillar can still pay (“left”).** Every care deed shows how many Tons are **left** to earn from its pillar — e.g. `+0.002 Tons/sec · 22.8 left`. A deed pays its rate only until that number reaches zero (the pillar is full), then it stops until the pillar drains again. So 7 hours of sleep from a half-empty Sleep pillar pays the 22.8 that was left, not 7 × 3,600 × 0.002. The running timer counts the “left to earn” down live, and the summary shows what's left afterwards.
 - **Allah (faith)** is the seventh pillar: **Prayer** (one tap, `+9 Tons`) and **Quran** (a timer, `+0.01 Tons/sec`). It drains slowly, counts toward overall Health like the others, and you can add your own deeds to it (dhikr, dua, charity…) from Deeds → +.
 - Overall Health = 60% average of the pillars + 40% your weakest pillar.
 - **Gate:** below **40%** you can't start an investment (and a running one stops). Look after yourself first.
