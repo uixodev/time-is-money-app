@@ -257,3 +257,13 @@ textarea.field{min-height:96px;resize:vertical;line-height:1.4}
 .compact .deedbtn{padding:7px 12px;gap:6px;font-size:14px;flex-wrap:nowrap}
 .compact .deedbtn .dot{width:9px;height:9px}
 .compact .deedbtn em{font-size:11px;margin-left:0;white-space:nowrap}
+
+/* v35 deed tiles: two columns, name on top, rate under it, a small bar for how much the pillar can still pay */
+.compact .deeds{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+.compact .deedbtn{display:flex;flex-direction:column;align-items:stretch;gap:2px;padding:10px 12px;border-radius:16px;text-align:left;min-width:0}
+.compact .deedbtn .dn{display:flex;align-items:center;gap:7px;font-size:15px;min-width:0}
+.compact .deedbtn .dn span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.compact .deedbtn .dr{font-size:12px;margin:0;white-space:normal}
+.compact .deedbtn .dl{font-size:11px;color:var(--muted);font-weight:600}
+.compact .deedbtn .db{display:block;height:4px;border-radius:99px;background:var(--line);overflow:hidden;margin-top:3px}
+.compact .deedbtn .db i{display:block;height:100%;background:var(--lime);border-radius:99px;filter:saturate(1.2)}

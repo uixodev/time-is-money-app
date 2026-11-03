@@ -5,7 +5,7 @@
 (() => {
   'use strict';
   const KEY = 'tick.v1';
-  const VERSION = 'v34';   // bump with the ?v= number in index.html so browsers fetch fresh files
+  const VERSION = 'v35';   // bump with the ?v= number in index.html so browsers fetch fresh files
   const DAY = 86400;
   const $ = (s, el = document) => el.querySelector(s);
   // one tonal green family (+ ink) so every deed colour belongs to the brand
@@ -586,9 +586,10 @@
   }).join('');
   const healthSub = () => gated() ? `Too low to invest — refill ${lowest(2).map(k => PILLARS[k].name).join(' or ')} first` : `Refill pillars to earn Tons · keep it above ${HEALTH_MIN}% to invest`;
   const deedBtn = d => {
-    if (d.kind === 'care' && d.mode === 'tap') return `<button class="deedbtn" data-tap="${d.id}"><i class="dot" style="background:${d.color}"></i>${esc(d.name)}<em>${rateLbl(d)} · ${leftLbl(d)}</em></button>`;
-    const em = d.kind === 'care' ? `${rateLbl(d)} · ${leftLbl(d)}` : rateLbl(d);
-    return `<button class="deedbtn" data-start="${d.id}" ${d.kind === 'invest' && gated() ? 'disabled' : ''}><i class="dot" style="background:${d.color}"></i>${esc(d.name)}<em>${em}</em></button>`;
+    const care = d.kind === 'care', tap = care && d.mode === 'tap', r = care ? roomTons(d.pillar) : 0, pct = care ? Math.round(100 * r / (100 * PILLARS[d.pillar].price)) : 0;
+    const attr = tap ? `data-tap="${d.id}"` : `data-start="${d.id}" ${d.kind === 'invest' && gated() ? 'disabled' : ''}`;
+    return `<button class="deedbtn" ${attr}><span class="dn"><i class="dot" style="background:${d.color}"></i><span>${esc(d.name)}</span></span>
+      <em class="dr">${rateLbl(d)}</em>${care ? `<span class="dl">${r < 0.05 ? 'full — nothing to earn' : `${t1(r)} Tons to earn`}</span><span class="db"><i style="width:${pct}%"></i></span>` : ''}</button>`;
   };
   const group = (kind, title) => {
     const ds = S.deeds.filter(d => d.kind === kind && !isActive(d.id)); if (!ds.length) return '';
