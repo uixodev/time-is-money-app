@@ -315,3 +315,17 @@ textarea.field{min-height:96px;resize:vertical;line-height:1.4}
 /* v38 mini celebration pop-up */
 .sheet-wrap.mini{align-items:center;justify-content:center;padding:0 22px}
 .sheet-wrap.mini .sheet{border-radius:28px;max-width:340px;max-height:86%;padding:22px 18px 18px}
+
+/* v39 invest tab: portfolio style */
+.pc{display:inline-block;padding:3px 9px;border-radius:999px;font-size:12px;font-weight:800;background:var(--line);color:var(--muted);white-space:nowrap}
+.pc.up{background:rgba(111,191,59,.2);color:#3E8E1F}.pc.dn{background:rgba(214,69,69,.15);color:#C23B3B}
+.hero .pc{background:rgba(22,33,15,.12);color:#16210F}
+.big-pc{font-size:13px}
+.spark{display:block;width:100%;height:70px;margin-top:12px}
+@media (prefers-color-scheme: dark){:root:not([data-theme=light]) .pc.up{color:#C9F26B}:root:not([data-theme=light]) .pc.dn{color:#FF8A8A}}
+:root[data-theme=dark] .pc.up{color:#C9F26B}:root[data-theme=dark] .pc.dn{color:#FF8A8A}
+.hold{cursor:pointer}
+.holdr{display:flex;flex-direction:column;align-items:flex-end;gap:3px;white-space:nowrap}
+.holdr small{font-size:11px;font-weight:600;color:var(--muted)}
+.play{flex:none;width:34px;height:34px;border-radius:50%;background:var(--btn-bg);color:var(--btn-fg);font-size:12px;display:flex;align-items:center;justify-content:center;border:0}
+.play[disabled]{opacity:.35}

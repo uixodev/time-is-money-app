@@ -5,7 +5,7 @@
 (() => {
   'use strict';
   const KEY = 'tick.v1';
-  const VERSION = 'v38';   // bump with the ?v= number in index.html so browsers fetch fresh files
+  const VERSION = 'v39';   // bump with the ?v= number in index.html so browsers fetch fresh files
   const DAY = 86400;
   const $ = (s, el = document) => el.querySelector(s);
   // one tonal green family (+ ink) so every deed colour belongs to the brand
@@ -762,35 +762,47 @@
     if (/earn|spen[dt]|top|most|where/.test(l)) { const { earned, spent } = dayEarnSpend(0); return `Today: +${t1(earned)} earned, −${t1(spent)} spent. Net ${signed(earned - spent)} Tons.`; }
     return 'Try “2h scrolling”, “2h learn to code”, “100 tons”, “how is my health?” or “how many Tons do I have?”';
   }
+  const roiChip = x => x.spent >= 1 ? `<span class="pc ${x.roi >= 0 ? 'up' : 'dn'}">${x.roi >= 0 ? '▲' : '▼'} ${Math.abs(Math.round(x.roi * 100))}%</span>` : '<span class="pc">new</span>';
+  // dividends paid per day for the last 14 days → a small stock-style area chart
+  function divChart() {
+    const vals = Array.from({ length: 14 }, (_, k) => { const [d0, d1] = dayRange(13 - k); return S.entries.reduce((a, e) => a + (e.div && e.ts >= d0 && e.ts < d1 ? e.ticks : 0), 0); });
+    const W = 320, H = 70, mx = Math.max(0.01, ...vals), pts = vals.map((v, k) => [k * W / 13, H - 6 - (v / mx) * (H - 16)]);
+    const line = pts.map((q, k) => (k ? 'L' : 'M') + q[0].toFixed(1) + ' ' + q[1].toFixed(1)).join(' ');
+    return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true"><defs><linearGradient id="sg" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#16210F" stop-opacity=".28"/><stop offset="1" stop-color="#16210F" stop-opacity="0"/></linearGradient></defs><path d="${line} L${W} ${H} L0 ${H} Z" fill="url(#sg)"/><path d="${line}" fill="none" stroke="#16210F" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/><circle cx="${pts[13][0]}" cy="${pts[13][1].toFixed(1)}" r="4" fill="#16210F"/></svg>`;
+  }
+  function holdSheet(id) {
+    const d = deedOf(id), x = { d, ...investStats(d) }; if (d.kind !== 'invest') return;
+    const n = S.notes.find(q => q.deedId === id), cnt = S.notes.filter(q => q.deedId === id).length, dis = S.actives.length >= MAX_ACTIVE || isActive(id) || gated();
+    openSheet(`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><div><h3 style="margin:0">${esc(d.name)}</h3><div class="sub" style="margin:2px 0 0">costs ${nf2(d.rate)} Tons/min · ${roiChip(x)}</div></div><div style="display:flex;gap:8px"><button class="x edit" data-edit="${id}" aria-label="Edit">✎</button><button id="x" aria-label="Close" style="width:38px;height:38px;border-radius:50%;border:1.5px solid var(--ink);background:none;color:var(--ink);font-size:22px;line-height:1;cursor:pointer">×</button></div></div>
+      <div class="stats">${statBox(tk + t1(x.perDay), 'dividend / day')}${statBox(nf(Math.round(x.hours * 10) / 10) + 'h', 'time invested')}${statBox(tk + num(x.spent), 'invested')}${statBox(tk + num(x.returned), 'paid back')}${statBox(x.skill.toFixed(1) + 'h', 'skill now')}${statBox(x.spent < 1 ? '—' : x.net >= 0 ? 'In profit' : fmtDays(x.days), 'break-even')}</div>
+      ${n ? `<div class="sub" style="margin-top:12px;font-style:italic">“${esc(n.text || 'Rated ' + n.rating + '/5')}” <span style="font-size:12px">· ${cnt} note${cnt === 1 ? '' : 's'}</span></div>` : ''}
+      <div style="display:flex;gap:10px;margin-top:14px"><button class="btn" style="margin:0;flex:1" data-start="${id}" ${dis ? 'disabled' : ''}>${isActive(id) ? 'Running…' : gated() ? 'Health too low' : S.actives.length >= MAX_ACTIVE ? '3 running' : 'Invest now'}</button><button class="chip" style="margin:0;align-self:center" data-add-note="${id}">+ note</button></div>`, w => { $('#x', w).onclick = closeSheet; });
+  }
   function viewInvest() {
-    const invs = S.deeds.filter(d => d.kind === 'invest'), st = invs.map(d => ({ d, ...investStats(d) }));
+    const invs = S.deeds.filter(d => d.kind === 'invest'), st = invs.map(d => ({ d, ...investStats(d) })).sort((a, b) => b.perDay - a.perDay);
     const perDay = st.reduce((a, x) => a + x.perDay, 0), spent = st.reduce((a, x) => a + x.spent, 0), returned = st.reduce((a, x) => a + x.returned, 0);
+    const tot = spent >= 1 ? (returned - spent) / spent : null;
     const chips = ['2h learn to code', '1h deep work', '100 tons', 'how is my health?'];
     return `
       ${head('Invest', '<button class="icon-btn" data-act="addinvest" aria-label="Add investment">+</button>')}
       <div class="card hero">
-        <div class="lbl">Dividends today</div>
-        <div class="big live" id="divs">${tk}${tBig(perDay)}</div>
-        <div class="sub">per day from ${invs.length} investment${invs.length === 1 ? '' : 's'} · fades 2% a day without practice</div>
+        <div class="lbl">Daily dividends</div>
+        <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap"><div class="big live" id="divs">${tk}${tBig(perDay)}</div><span class="pc big-pc ${tot === null ? '' : tot >= 0 ? 'up' : 'dn'}">${tot === null ? 'getting started' : (tot >= 0 ? '▲ ' : '▼ ') + Math.abs(Math.round(tot * 100)) + '% overall'}</span></div>
+        ${divChart()}
+        <div class="hrow"><span>Last 14 days</span><span>per day · fades 2% without practice</span></div>
       </div>
       <div class="grid2">
-        <div class="card"><div class="mid">${tk}${num(spent)}</div><div class="sub">Invested so far</div></div>
-        <div class="card"><div class="mid">${tk}${num(returned)}</div><div class="sub">Paid back</div></div>
+        <div class="card"><div class="sub" style="margin:0">Invested</div><div class="mid" style="font-size:26px">${tk}${num(spent)}</div></div>
+        <div class="card"><div class="sub" style="margin:0">Paid back</div><div class="mid" style="font-size:26px">${tk}${num(returned)}</div></div>
       </div>
-      ${S.actives.filter(a => deedOf(a.deedId).kind === 'invest').map(a => `<div class="card"><div class="sub"><span class="pulse"></span>Investing in <b>${esc(deedOf(a.deedId).name)}</b></div>${stageHTML(a)}<button class="btn stop" data-stop="${a.id}">Stop</button></div>`).join('')}
-      ${st.length ? st.map(x => `
-        <div class="card">
-          <div style="display:flex;justify-content:space-between;align-items:center"><div class="mid">${esc(x.d.name)}</div><button class="x edit" data-edit="${x.d.id}" aria-label="Edit ${esc(x.d.name)}">✎</button></div>
-          <div class="sub">${nf(x.hours * 10 / 10)}h invested · skill ${x.skill.toFixed(1)}h · costs ${nf2(x.d.rate)} Tons/min</div>
-          <div class="grid2" style="margin:12px 0 0">
-            <div><div class="mid" style="font-size:24px">${tk}${t1(x.perDay)}</div><div class="sub">dividend / day</div></div>
-            <div><div class="mid" style="font-size:24px">${x.spent >= 1 ? (x.roi >= 0 ? '+' : '−') + Math.abs(Math.round(x.roi * 100)) + '%' : '—'}</div><div class="sub">return so far</div></div>
-          </div>
-          <div class="sub" style="margin-top:10px">${x.spent < 1 ? 'Just getting started — put a few hours in.' : x.net >= 0 ? 'In profit ✓' : `Break-even: ${fmtDays(x.days)}`}</div>
-          ${(() => { const n = S.notes.find(q => q.deedId === x.d.id); const cnt = S.notes.filter(q => q.deedId === x.d.id).length; return n ? `<div class="jtext sub" style="margin-top:10px;font-style:italic">“${esc(n.text || 'Rated ' + n.rating + '/5')}”</div><div class="sub" style="font-size:12px">${cnt} note${cnt === 1 ? '' : 's'} in your Journal</div>` : ''; })()}
-          <div style="display:flex;gap:10px;align-items:center;margin-top:12px"><button class="btn" style="margin:0;flex:1" data-start="${x.d.id}" ${(S.actives.length >= MAX_ACTIVE || isActive(x.d.id) || gated()) ? 'disabled' : ''}>${isActive(x.d.id) ? 'Running…' : gated() ? 'Health too low' : S.actives.length >= MAX_ACTIVE ? '3 running' : 'Invest now'}</button><button class="chip" style="margin:0" data-add-note="${x.d.id}">+ note</button></div>
-        </div>`).join('') : '<div class="card"><div class="empty">No investments yet.<br>Tap + to add one, like “Learn to code”.</div></div>'}
-      <h2>What if…?</h2>
+      ${S.actives.filter(a => deedOf(a.deedId).kind === 'invest').map(a => { const d = deedOf(a.deedId); return `<div class="card run"><div class="rhead"><div class="sub"><span class="pulse"></span>Investing in <b>${esc(d.name)}</b></div><button class="pbtn" data-stop="${a.id}">Stop</button></div>${stageHTML(a)}</div>`; }).join('')}
+      <div class="sechead"><b>Your investments</b><button class="link" data-act="addinvest">+ Add</button></div>
+      <div class="card txl">${st.length ? st.map(x => `
+        <div class="tx hold" data-hold="${x.d.id}" role="button" tabindex="0"><span class="txi" style="background:${x.d.color};border-color:transparent;color:#16210F;font-weight:800">${esc(x.d.name.trim().charAt(0).toUpperCase())}</span>
+          <span class="txm"><b>${esc(x.d.name)}</b><span class="sub">${nf(Math.round(x.hours * 10) / 10)}h · skill ${x.skill.toFixed(1)}h · −${nf2(x.d.rate)}/min</span></span>
+          <span class="holdr"><b>${tk}${t1(x.perDay)}<small>/day</small></b>${roiChip(x)}</span>
+          <button class="play" data-start="${x.d.id}" aria-label="Invest now" ${(S.actives.length >= MAX_ACTIVE || isActive(x.d.id) || gated()) ? 'disabled' : ''}>${isActive(x.d.id) ? '●' : '▶'}</button></div>`).join('') : '<div class="empty">No investments yet.<br>Tap + to add one, like “Learn to code”.</div>'}</div>
+      <div class="sechead"><b>What if…?</b></div>
       <div class="card">
         <div class="sub">Ask what something would cost, or how your Health is doing.</div>
         <div class="chat" id="chat">${S.chat.slice(-4).map(c => `<div class="bub ${c.from}">${esc(c.text)}</div>`).join('')}</div>
@@ -1057,7 +1069,9 @@
     const q = $('#q'); if (q) q.focus({ preventScroll: true });
   }
   document.addEventListener('click', e => {
-    const t = e.target.closest('button'); if (!t || t.disabled) return;
+    const t = e.target.closest('button');
+    if (!t) { const h = e.target.closest('[data-hold]'); if (h) holdSheet(h.dataset.hold); return; }
+    if (t.disabled) return;
     const d = t.dataset;
     if (d.tab) { tab = d.tab; render(); return; }
     if (d.chip) { ask(d.chip); return; }
