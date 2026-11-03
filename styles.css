@@ -267,3 +267,30 @@ textarea.field{min-height:96px;resize:vertical;line-height:1.4}
 .compact .deedbtn .dl{font-size:11px;color:var(--muted);font-weight:600}
 .compact .deedbtn .db{display:block;height:4px;border-radius:99px;background:var(--line);overflow:hidden;margin-top:3px}
 .compact .deedbtn .db i{display:block;height:100%;background:var(--lime);border-radius:99px;filter:saturate(1.2)}
+
+/* v36 wallet: finance-app layout */
+.hero .big{margin-top:6px}
+.hero .hrow{display:flex;justify-content:space-between;align-items:baseline;margin-top:16px;font-size:13px;font-weight:600;opacity:.8}
+.hero .hrow b{font-size:15px;font-variant-numeric:tabular-nums}
+.hero .bar{margin-top:8px;height:6px}
+.qas{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:0 0 18px}
+.qa{display:flex;flex-direction:column;align-items:center;gap:7px;font-size:13px;font-weight:700;color:var(--ink)}
+.qi{width:56px;height:56px;border-radius:50%;background:var(--card);border:1px solid var(--line);display:flex;align-items:center;justify-content:center}
+.qi svg{width:24px;height:24px}
+.qa:active .qi{background:var(--lime);color:#16210F}
+.sechead{display:flex;justify-content:space-between;align-items:baseline;margin:6px 2px 8px;font-size:17px}
+.link{font-size:14px;font-weight:700;color:var(--muted)}
+.txl{padding:6px 14px}
+.tx{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--line)}
+.tx:last-child{border-bottom:0}
+.txi{width:42px;height:42px;border-radius:50%;background:var(--bg);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;flex:none}
+.txi.in{background:var(--lime);color:#16210F;border-color:transparent}
+.txi svg{width:20px;height:20px}
+.txm{flex:1;min-width:0;display:flex;flex-direction:column}
+.txm .sub{margin:1px 0 0;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.txa{font-variant-numeric:tabular-nums;white-space:nowrap}
+.txa.in{color:#3E8E1F}
+@media (prefers-color-scheme: dark){:root:not([data-theme=light]) .txa.in{color:#C9F26B}}
+:root[data-theme=dark] .txa.in{color:#C9F26B}
+.sechead b{white-space:nowrap;font-size:17px}
+.sechead .link{margin-left:auto;padding:0;background:none;border:0;text-decoration:none}

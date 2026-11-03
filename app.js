@@ -5,7 +5,7 @@
 (() => {
   'use strict';
   const KEY = 'tick.v1';
-  const VERSION = 'v35';   // bump with the ?v= number in index.html so browsers fetch fresh files
+  const VERSION = 'v36';   // bump with the ?v= number in index.html so browsers fetch fresh files
   const DAY = 86400;
   const $ = (s, el = document) => el.querySelector(s);
   // one tonal green family (+ ink) so every deed colour belongs to the brand
@@ -143,6 +143,8 @@
     invest: '<path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/>',
     goals: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1" fill="currentColor"/>',
     history: '<path d="M5 20V11M12 20V4M19 20v-6"/>',
+    earn: '<path d="M12 5v14M5 12h14"/>',
+    spend: '<path d="M7 17L17 7M8 7h9v9"/>',
     account: '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/>',
   };
   const icon = k => `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[k]}</svg>`;
@@ -660,27 +662,37 @@
     });
   }
 
+  const KIND_UI = { care: ['Earn', 'earn', 'Look after yourself · earns Tons'], invest: ['Invest', 'invest', 'Invest · costs now, pays back later'], useless: ['Spend', 'spend', 'Spend · no return'] };
+  function pickSheet(kind) {
+    const [name, , sub] = KIND_UI[kind];
+    const full = S.actives.length >= MAX_ACTIVE;
+    openSheet(`<div style="display:flex;justify-content:space-between;align-items:center"><h3 style="margin:0">${name}</h3><button id="x" aria-label="Close" style="width:38px;height:38px;border-radius:50%;border:1.5px solid var(--ink);background:none;color:var(--ink);font-size:22px;line-height:1;cursor:pointer">×</button></div>
+      <div class="sub" style="margin-bottom:6px">${full ? `You are doing ${MAX_ACTIVE} things at once — stop one to start another.` : kind === 'invest' && gated() ? `Health is too low to invest — refill ${lowest(2).map(k => PILLARS[k].name).join(' or ')} first.` : sub}</div>
+      <div class="compact">${group(kind, '')}${kind === 'care' ? group('neutral', 'Just living · time only') : ''}</div>`, w => { $('#x', w).onclick = closeSheet; });
+  }
+  const recentHTML = () => {
+    const rows = S.entries.filter(e => !isAdjust(e) && e.ticks).sort((a, b) => b.ts - a.ts).slice(0, 6);
+    if (!rows.length) return '<div class="sub" style="padding:6px 0">Nothing yet — start a deed and it will show up here.</div>';
+    const gl = c => c === 'care' || c === 'other' ? 'deeds' : c === 'invest' || c === 'div' ? 'invest' : c === 'reward' ? 'goals' : 'spend';
+    return rows.map(e => { const d = deedOf(e.deedId), c = catOf(e);
+      return `<div class="tx"><span class="txi ${e.ticks > 0 ? 'in' : ''}">${icon(gl(c))}</span><span class="txm"><b>${esc(d.name)}</b><span class="sub">${e.div ? 'Daily dividend' : CAT[c]}${e.secs > 0 ? ' · ' + dur(e.secs) : ''} · ${ago(e.ts)}</span></span><b class="txa ${e.ticks > 0 ? 'in' : ''}">${e.ticks > 0 ? '+' : '−'}${t1(e.ticks)}</b></div>`; }).join('');
+  };
   function viewWallet() {
-    const bal = balance(), { earned, spent } = dayEarnSpend(0), debt = bal < -0.004, hs = healthScore();
+    const bal = balance(), debt = bal < -0.004;
+    const act = (k, label, extra) => `<button class="qa" ${extra}><span class="qi">${icon(k)}</span><span>${label}</span></button>`;
     return `
       ${head('Wallet')}
       <div class="card hero ${debt ? 'debt' : ''}" id="balhero">
-        <div class="lbl" id="ballbl">${debt ? 'In debt · useless time costs +50%' : 'Your Tons'}</div>
+        <div class="lbl" id="ballbl">${debt ? 'In debt · useless time costs +50%' : 'Total balance'}</div>
         <div class="big live" id="bal">${tk}${tBig(bal)}</div>
-        <button class="chip" data-act="ledger" style="margin:12px 0 0;background:none;color:inherit">View history ›</button>
-      </div>
-      <div class="card">
-        <div style="display:flex;justify-content:space-between;align-items:baseline"><b>Time left today</b><span class="mid live" id="hms" style="font-size:22px">${hms(dayRemaining())}</span></div>
+        <div class="hrow"><span>Time left today</span><b class="live" id="hms">${hms(dayRemaining())}</b></div>
         <div class="bar"><i id="bar" style="width:${((DAY - dayRemaining()) / DAY) * 100}%"></i></div>
-        <div class="sub" style="margin-top:6px" id="tracked">${dur(trackedToday())} tracked today · 86,400 seconds a day for everyone · expires at midnight</div>
       </div>
+      <div class="qas">${act('earn', 'Earn', 'data-pick="care"')}${act('invest', 'Invest', 'data-pick="invest"')}${act('spend', 'Spend', 'data-pick="useless"')}${act('history', 'History', 'data-act="ledger"')}</div>
       ${runningHTML()}
-      <div class="card compact">
-        <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><b>${S.actives.length ? 'Add another' : 'What are you doing?'}</b><span class="sub" style="margin:0;font-size:12px">${S.actives.length ? `${S.actives.length}/${MAX_ACTIVE} running` : `up to ${MAX_ACTIVE} at once`}</span></div>
-        ${S.actives.length >= MAX_ACTIVE ? `<div class="sub">You are doing ${MAX_ACTIVE} things at once — stop one to start another.</div>` : gated() ? `<div class="sub">Health is too low to invest — refill ${lowest(2).map(k => PILLARS[k].name).join(' or ')} first.</div>` : ''}
-        ${S.actives.length >= MAX_ACTIVE ? '' : `${group('care', 'Look after yourself · earns')}${group('invest', 'Invest · pays back later')}${group('useless', 'Spend · no return')}${group('neutral', 'Just living')}`}
-      </div>
-      <h2>Where today went</h2>
+      <div class="sechead"><b>Recent activity</b><button class="link" data-act="ledger">See all</button></div>
+      <div class="card txl" id="recent">${recentHTML()}</div>
+      <div class="sechead"><b>Where today went</b></div>
       <div class="card" id="where">${whereHTML()}</div>`;
   }
   function whereHTML() {
@@ -893,7 +905,7 @@
     const bal = balance(), { earned, spent } = dayEarnSpend(0), debt = bal < -0.004, hs = healthScore();
     const set = (id, h) => { const e = $(id); if (e) e.innerHTML = h; };
     set('#bal', tk + tBig(bal));
-    set('#ballbl', debt ? 'In debt · useless time costs +50%' : 'Your Tons');
+    set('#ballbl', debt ? 'In debt · useless time costs +50%' : 'Total balance');
     const hero = $('#balhero'); if (hero) hero.classList.toggle('debt', debt);
     set('#hscore', `${Math.round(hs)}<small>%</small>`); set('#hsub', healthSub()); set('#pillars', pillarsHTML());
     set('#hms', hms(dayRemaining())); set('#tracked', `${dur(trackedToday())} tracked today · 86,400 seconds a day for everyone · expires at midnight`);
@@ -1045,6 +1057,8 @@
     const d = t.dataset;
     if (d.tab) { tab = d.tab; render(); return; }
     if (d.chip) { ask(d.chip); return; }
+    if (d.pick) { pickSheet(d.pick); return; }
+    if ((d.tap || d.start) && t.closest('#sheet')) closeSheet();
     if (d.tap) { tapCare(d.tap); return; }
     if (d.start) {
       const dd = deedOf(d.start);
