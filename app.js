@@ -5,7 +5,7 @@
 (() => {
   'use strict';
   const KEY = 'tick.v1';
-  const VERSION = 'v47';   // bump with the ?v= number in index.html so browsers fetch fresh files
+  const VERSION = 'v48';   // bump with the ?v= number in index.html so browsers fetch fresh files
   const DAY = 86400;
   const $ = (s, el = document) => el.querySelector(s);
   // one tonal green family (+ ink) so every deed colour belongs to the brand
@@ -752,11 +752,11 @@
     if (!invs.length) return `<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><b>Gems</b><div class="sub" style="margin:2px 0 0">Invest time in something and it pays you gems every day.</div></div><button class="pbtn" data-pick="invest">Invest</button></div></div>`;
     const perDay = invs.reduce((a, x) => a + x.perDay, 0), pend = gemsPending();
     return `<div class="card">
-      <div class="sechead" style="margin:0 0 8px"><b>Incoming gems</b><button class="link" data-tab="invest">Invest ›</button></div>
+      <div class="sechead" style="margin:0 0 8px"><span class="eyebrow">Incoming gems</span><button class="link" data-tab="invest">Invest ›</button></div>
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><span class="gv">${S.divAuto ? '' : '<i>+</i>'}${gm}<b>${S.divAuto ? gemRate(perDay) : gemN(pend)}</b>${S.divAuto ? '<small>/ day</small>' : ''}</span><div class="sub" style="margin:0">${S.divAuto ? 'Paid straight into your gems' : 'ready · building ≈ ' + gemRate(perDay) + ' a day'}</div></div>
         ${S.divAuto ? '' : `<button class="pbtn" data-act="collect" ${pend < 1 ? 'disabled style="opacity:.4"' : ''}>Collect</button>`}</div>
       ${S.divAuto ? '' : `<div class="bar"><i style="width:${Math.round(gemFrac() * 100)}%"></i></div><div class="sub" style="margin-top:6px">Next gem is ${Math.round(gemFrac() * 100)}% there.</div>`}
-      ${invs.slice(0, 3).map(x => `<div class="row" style="padding:8px 0 0"><i class="dot" style="background:${x.d.color}"></i><div class="t"><b>${esc(x.d.name)}</b></div><div class="r"><b>+${gemRate(x.perDay)}/day</b></div></div>`).join('')}
+      <div class="irows">${invs.slice(0, 3).map(x => `<div class="irow"><i class="dot" style="background:${x.d.color}"></i><span>${esc(x.d.name)}</span><b>+${gemRate(x.perDay)}/day</b></div>`).join('')}</div>
     </div>`;
   }
   // the goal you're closest to — with the Buy button right here
@@ -766,8 +766,8 @@
     const inc = S.deeds.filter(d => d.kind === 'invest').reduce((a, d) => a + gemsPerDay(d), 0);
     return `<div class="card">
       ${IMG_OK(g.img) ? `<div class="cover" style="margin:-4px -4px 10px"><img src="${g.img}" alt=""></div>` : ''}
-      <div class="sechead" style="margin:0 0 8px"><b>Saving up for</b><button class="link" data-tab="goals">Shop ›</button></div>
-      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px"><b style="font-size:17px">${esc(g.name)}</b><span class="sub" style="margin:0">${gm} ${gemN(Math.min(have, g.target))} of ${gemN(g.target)}</span></div>
+      <div class="sechead" style="margin:0 0 4px"><span class="eyebrow">Saving up for</span><button class="link" data-tab="goals">Shop ›</button></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><b style="font-size:20px;letter-spacing:-.3px">${esc(g.name)}</b><span class="gv" style="font-size:18px">${gm}<b>${gemN(Math.min(have, g.target))}</b><small>/ ${gemN(g.target)}</small></span></div>
       <div class="bar"><i style="width:${Math.max(0, Math.min(100, (have / g.target) * 100))}%"></i></div>
       <div class="sub" style="margin-top:6px">${can ? 'You can afford it 🎉' : `${gemN(need)} gem${need === 1 ? '' : 's'} to go${inc > 0.05 ? ` · about ${Math.max(1, Math.ceil(need / inc))} day${Math.ceil(need / inc) <= 1 ? '' : 's'} at your pace` : ' · invest to earn gems'}`}</div>
       ${can ? `<button class="btn" data-buy="${g.id}" style="margin-top:10px">Buy it · ${gm} ${gemN(g.target)}</button>` : ''}
@@ -856,7 +856,7 @@
     if (/earn|spen[dt]|top|most|where/.test(l)) { const { earned, spent } = dayEarnSpend(0); return `Today: +${t1(earned)} earned, −${t1(spent)} spent. Net ${signed(earned - spent)} Tons.`; }
     return 'Try “2h scrolling”, “2h learn to code”, “100 tons”, “how is my health?” or “how many Tons do I have?”';
   }
-  const roiChip = x => `<span class="pc ${x.gemsEarned > 0 ? 'up' : ''}">${gm} ${gemN(x.gemsEarned)} earned</span>`;
+  const roiChip = x => `<span class="pc ${x.gemsEarned > 0 ? 'up' : ''}">${gemN(x.gemsEarned)} earned</span>`;
   // dividends paid per day for the last 14 days → a small stock-style area chart
   function divChart() {
     const vals = Array.from({ length: 14 }, (_, k) => { const [d0, d1] = dayRange(13 - k); return S.entries.reduce((a, e) => a + (e.div && e.ts >= d0 && e.ts < d1 ? e.ticks * GEM_PER_DIV : 0), 0); });
@@ -881,13 +881,13 @@
       ${head('Invest', '<button class="icon-btn" data-act="addinvest" aria-label="Add investment">+</button>')}
       <div class="card hero">
         <div class="lbl">Gems per day</div>
-        <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap"><div class="big live" id="divs">${gm} ${gemRate(perDay)}</div><span class="pc big-pc">${gm} ${gemN(gems())} in your pocket</span></div>
+        <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap"><div class="gv big live" id="divs">${gm}<b>${gemRate(perDay)}</b></div><span class="pc big-pc">${gemN(gems())} in your pocket</span></div>
         ${divChart()}
-        <div class="hrow"><span>Last 14 days</span><span>gems earned per day · fades 2% without practice</span></div>
+        <div class="hrow"><span>Last 14 days</span><span>gems earned per day</span></div>
       </div>
-      <div class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><div class="sub" style="margin:0">${S.divAuto ? 'Auto-pay is on' : 'Ready to collect'}</div>${S.divAuto ? '<div class="mid" style="font-size:22px">Paid as it builds</div>' : `<span class="gv"><i>+</i>${gm}<b>${gemN(pend)}</b></span>`}</div>${S.divAuto ? '' : `<button class="pbtn" data-act="collect" ${pend < 1 ? 'disabled style="opacity:.4"' : ''}>Collect</button>`}</div>
+      <div class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><div class="eyebrow">${S.divAuto ? 'Auto-pay is on' : 'Ready to collect'}</div>${S.divAuto ? '<div class="gv" style="font-size:20px">Paid as it builds</div>' : `<span class="gv"><i>+</i>${gm}<b>${gemN(pend)}</b></span>`}</div>${S.divAuto ? '' : `<button class="pbtn" data-act="collect" ${pend < 1 ? 'disabled style="opacity:.4"' : ''}>Collect</button>`}</div>
         ${S.divAuto ? '' : `<div class="bar"><i style="width:${Math.round(gemFrac() * 100)}%"></i></div><div class="sub" style="margin-top:6px">Next gem is ${Math.round(gemFrac() * 100)}% there.</div>`}
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;gap:10px"><span class="sub" style="margin:0">${S.divAuto ? 'Gems go straight into your pocket.' : 'Gems build up until you collect.'}</span><button class="chip" style="margin:0" data-act="autopay">Auto-pay: ${S.divAuto ? 'on' : 'off'}</button></div></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;padding-top:12px;border-top:1px solid var(--line)"><span style="font-weight:700">Auto-pay</span><button class="chip" style="margin:0" data-act="autopay">${S.divAuto ? 'On' : 'Off'}</button></div></div>
       <div class="grid2">
         <div class="card"><div class="sub" style="margin:0">Tons invested</div><div class="mid" style="font-size:26px">${tk}${num(spent)}</div></div>
         <div class="card"><div class="sub" style="margin:0">Gems earned</div><div class="mid" style="font-size:26px">${gm} ${gemN(earnedG)}</div></div>
@@ -896,7 +896,7 @@
       <div class="sechead"><b>Your investments</b><button class="link" data-act="addinvest">+ Add</button></div>
       <div class="card txl">${st.length ? st.map(x => `
         <div class="tx hold" data-hold="${x.d.id}" role="button" tabindex="0"><span class="txi" style="background:${x.d.color};border-color:transparent;color:#16210F;font-weight:800">${esc(x.d.name.trim().charAt(0).toUpperCase())}</span>
-          <span class="txm"><b>${esc(x.d.name)}</b><span class="sub">${nf(Math.round(x.hours * 10) / 10)}h · skill ${x.skill.toFixed(1)}h · −${nf2(x.d.rate)} Tons/min</span></span>
+          <span class="txm"><b class="ell">${esc(x.d.name)}</b><span class="sub">${nf(Math.round(x.hours * 10) / 10)}h · −${nf2(x.d.rate)}/min</span></span>
           <span class="holdr"><b>${gm} ${gemRate(x.gemsDay)}<small>/day</small></b>${roiChip(x)}</span>
           <button class="play" data-start="${x.d.id}" aria-label="Invest now" ${(S.actives.length >= MAX_ACTIVE || isActive(x.d.id) || gated()) ? 'disabled' : ''}>${isActive(x.d.id) ? '●' : '▶'}</button></div>`).join('') : '<div class="empty">No investments yet.<br>Tap + to add one, like “Learn to code”.</div>'}</div>
       <div class="sechead"><b>What if…?</b></div>
@@ -915,10 +915,10 @@
       const pct = Math.min(100, (have / g.target) * 100), cls = ['peach', 'mint', 'sky'][i % 3], need = g.target - have, can = need <= 0;
       return `<div class="card ${cls}">
         ${IMG_OK(g.img) ? `<div class="cover"><img src="${g.img}" alt=""></div>` : ''}
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><button class="gname mid" data-edit-goal="${g.id}" aria-label="Edit ${esc(g.name)}">${esc(g.name)}</button><button class="x edit" data-edit-goal="${g.id}" aria-label="Edit ${esc(g.name)}">✎</button></div>
-        <div class="big">${gm} ${gemN(Math.min(have, g.target))}</div>
-        <div class="sub">of ${gm} ${gemN(g.target)} · ${can ? 'You can afford it 🎉' : `${gemN(need)} gem${need === 1 ? '' : 's'} to go${inc > 0.05 ? ` ≈ ${Math.max(1, Math.ceil(need / inc))} day${Math.ceil(need / inc) <= 1 ? '' : 's'} at your pace` : ' — invest to earn gems'}`}</div>
-        <div class="bar"><i style="width:${pct}%"></i></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><button class="gname" data-edit-goal="${g.id}" aria-label="Edit ${esc(g.name)}" style="font-size:22px;font-weight:800;letter-spacing:-.5px;text-align:left;padding:0">${esc(g.name)}</button><button class="x edit" data-edit-goal="${g.id}" aria-label="Edit ${esc(g.name)}">✎</button></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px"><span class="gv" style="font-size:26px"><i style="display:none"></i>${gm}<b>${gemN(Math.min(have, g.target))}</b><small>/ ${gemN(g.target)}</small></span><span class="sub" style="margin:0;font-weight:700">${Math.round(pct)}%</span></div>
+        <div class="bar" style="margin-top:8px"><i style="width:${pct}%"></i></div>
+        <div class="sub" style="margin-top:8px">${can ? 'You can afford it 🎉' : `${gemN(need)} gem${need === 1 ? '' : 's'} to go${inc > 0.05 ? ` · about ${Math.max(1, Math.ceil(need / inc))} day${Math.ceil(need / inc) <= 1 ? '' : 's'} at your pace` : ' · invest to earn gems'}`}</div>
         <button class="btn" data-buy="${g.id}" ${can ? '' : 'disabled'}>${can ? `Buy it · ${gm} ${gemN(g.target)}` : 'Keep investing'}</button></div>`;
     };
     const cats = [...SHOP_CATS, ...new Set(shop.map(g => g.cat).filter(c => c && !SHOP_CATS.includes(c)))].filter(c => shop.some(g => (g.cat || 'Other') === c));
@@ -926,13 +926,13 @@
       <button class="pbtn" data-buy="${g.id}" ${can ? '' : 'disabled style="opacity:.4"'}>Buy</button><button class="x edit" data-edit-goal="${g.id}" aria-label="Edit ${esc(g.name)}">✎</button></div>`; };
     return `
       ${head('Shop', '<button class="icon-btn" data-act="addgoal" aria-label="Add shop item">+</button>')}
-      <div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><div class="sub" style="margin:0">Your gems</div><span class="gv">${gm}<b>${gemN(have)}</b></span></div>${gemsPending() >= 1 ? `<button class="pbtn" data-act="collect">Collect +${gemN(gemsPending())}</button>` : ''}</div>
+      <div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><div class="eyebrow">Your gems</div><span class="gv">${gm}<b>${gemN(have)}</b></span></div>${gemsPending() >= 1 ? `<button class="pbtn" data-act="collect">Collect +${gemN(gemsPending())}</button>` : ''}</div>
       ${cloudLine()}
       <button class="btn lime" data-act="spendany" style="border:1.5px solid var(--ink);margin-bottom:6px">Treat myself — spend on anything</button>
-      ${saving.length ? `<h2>Saving up for</h2>${saving.map(savingCard).join('')}` : ''}
+      ${saving.length ? `<div class="eyebrow" style="margin:18px 2px 8px">Saving up for</div>${saving.map(savingCard).join('')}` : ''}
       ${cats.map(c => `<div class="glbl" style="margin:16px 2px 8px">${esc(c)}</div><div class="card" style="padding:4px 14px">${shop.filter(g => (g.cat || 'Other') === c).map(row).join('')}</div>`).join('')}
       ${!saving.length && !shop.length ? '<div class="card"><div class="empty">The shop is empty.<br>Tap + to add something you would like to buy with gems.</div></div>' : ''}
-      ${S.bought.length ? `<h2>Bought</h2><div class="card">${S.bought.slice(0, 20).map(b => `
+      ${S.bought.length ? `<div class="eyebrow" style="margin:18px 2px 8px">Bought</div><div class="card">${S.bought.slice(0, 20).map(b => `
         ${(() => { const n = S.notes.find(x => x.refId === b.id); return `<div class="row"><div class="t"><b>${esc(b.name)}</b><span>${b.cat ? esc(b.cat) + ' · ' : ''}${new Date(b.ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}${n && n.rating ? ' · ' + stars(n.rating) : ''}</span>${n && n.text ? `<div class="jtext" style="font-style:italic;color:var(--muted);font-size:13px">“${esc(n.text)}”</div>` : ''}</div>
         <div class="r"><b>${b.cur === 'gem' ? gm : tk}−${num(b.cost)}</b></div>${n ? `<button class="x edit" data-edit-note="${n.id}" aria-label="Edit note">✎</button>` : `<button class="chip" style="margin:0" data-add-reward-note="${b.id}">+ note</button>`}</div>`; })()}`).join('')}</div>` : ''}`;
   }
@@ -1283,7 +1283,7 @@
   const timeStr = ts => new Date(ts).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
   const syncText = () => !user ? 'Not signed in' : sync.status === 'syncing' ? 'Syncing…' : sync.status === 'error' ? `⚠ ${sync.msg}` : sync.at ? `Synced at ${timeStr(sync.at)}` : 'Waiting to sync';
   const cloudCls = () => !user ? 'off' : sync.status === 'error' ? 'err' : sync.status === 'syncing' ? 'busy' : 'ok';
-  const cloudText = () => !user ? 'Not connected — sign in to keep your shop on all your devices' : sync.status === 'syncing' ? 'Syncing with your account…' : sync.status === 'error' ? `Sync problem: ${sync.msg}` : sync.at ? `Shop saved to your account · ${timeStr(sync.at)}` : 'Connected — waiting for the first sync…';
+  const cloudText = () => !user ? 'Only on this device — sign in to sync' : sync.status === 'syncing' ? 'Syncing with your account…' : sync.status === 'error' ? `Sync problem: ${sync.msg}` : sync.at ? `Saved to your account · ${timeStr(sync.at)}` : 'Connected — waiting for the first sync…';
   const cloudLine = () => `<div class="cloud"><i class="cd ${cloudCls()}" id="cloudot"></i><span id="cloudtxt">${cloudText()}</span>${user ? '<button class="chip" data-act="syncnow" style="margin:0">Sync now</button>' : '<button class="chip" data-act="account" style="margin:0">Sign in</button>'}</div>`;
   function setSync(status, msg) {
     sync = { status, msg: msg || '', at: status === 'idle' ? Date.now() : sync.at };

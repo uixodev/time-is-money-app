@@ -360,3 +360,15 @@ textarea.field{min-height:96px;resize:vertical;line-height:1.4}
 .cloud span{flex:1;min-width:0}
 .cd{width:9px;height:9px;border-radius:50%;flex:none;background:var(--muted)}
 .cd.ok{background:#4CAF50}.cd.err{background:#E24B4B}.cd.busy{background:#E0A800;animation:blink 1s step-end infinite}
+
+/* v48 layout tidy */
+.sechead .link{width:auto;display:inline-block;margin:0 0 0 auto;padding:0}
+.eyebrow{font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.gv.big{font-size:56px;letter-spacing:-2px;gap:10px}
+.gv.big .gm{width:44px;height:44px}
+.irows{margin-top:12px;border-top:1px solid var(--line);padding-top:4px}
+.irow{display:flex;align-items:center;gap:10px;padding:8px 0}
+.irow span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.irow b{white-space:nowrap}
+.ell{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hero .gv.big{color:#16210F}
