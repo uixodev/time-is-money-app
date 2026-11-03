@@ -5,7 +5,7 @@
 (() => {
   'use strict';
   const KEY = 'tick.v1';
-  const VERSION = 'v39';   // bump with the ?v= number in index.html so browsers fetch fresh files
+  const VERSION = 'v40';   // bump with the ?v= number in index.html so browsers fetch fresh files
   const DAY = 86400;
   const $ = (s, el = document) => el.querySelector(s);
   // one tonal green family (+ ink) so every deed colour belongs to the brand
@@ -681,6 +681,32 @@
     return rows.map(e => { const d = deedOf(e.deedId), c = catOf(e);
       return `<div class="tx"><span class="txi ${e.ticks > 0 ? 'in' : ''}">${icon(gl(c))}</span><span class="txm"><b>${esc(d.name)}</b><span class="sub">${e.div ? 'Daily dividend' : CAT[c]}${e.secs > 0 ? ' · ' + dur(e.secs) : ''} · ${ago(e.ts)}</span></span><b class="txa ${e.ticks > 0 ? 'in' : ''}">${e.ticks > 0 ? '+' : '−'}${t1(e.ticks)}</b></div>`; }).join('');
   };
+  // what your investments will pay: dividends accrue continuously and land in your balance through the day
+  function incomingHTML() {
+    const [d0, d1] = dayRange(0), invs = S.deeds.filter(d => d.kind === 'invest').map(d => ({ d, perDay: dividendPerDay(d) })).filter(x => x.perDay > 0.005).sort((a, b) => b.perDay - a.perDay);
+    if (!invs.length) return `<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><b>Incoming dividends</b><div class="sub" style="margin:2px 0 0">Invest time in something and it pays you Tons every day.</div></div><button class="pbtn" data-pick="invest">Invest</button></div></div>`;
+    const perDay = invs.reduce((a, x) => a + x.perDay, 0), paid = S.entries.reduce((a, e) => a + (e.div && e.ts >= d0 && e.ts < d1 ? e.ticks : 0), 0);
+    const pct = Math.min(100, perDay > 0 ? (paid / perDay) * 100 : 0);
+    return `<div class="card">
+      <div class="sechead" style="margin:0 0 8px"><b>Incoming dividends</b><button class="link" data-tab="invest">Invest ›</button></div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline"><span class="mid" style="font-size:26px">+${tk}${t1(perDay)}<small> / day</small></span><span class="sub" style="margin:0">${tk}${t1(paid)} paid so far today</span></div>
+      <div class="bar"><i style="width:${pct}%"></i></div>
+      <div class="sub" style="margin-top:6px">Paid out a little at a time, about +${(perDay / 24).toFixed(2)} an hour — roughly +${t1(perDay * 7)} over the next week.</div>
+      ${invs.slice(0, 3).map(x => `<div class="row" style="padding:8px 0 0"><i class="dot" style="background:${x.d.color}"></i><div class="t"><b>${esc(x.d.name)}</b></div><div class="r"><b>+${t1(x.perDay)}/day</b></div></div>`).join('')}
+    </div>`;
+  }
+  // the goal you're closest to — with the Buy button right here
+  function nextGoalHTML() {
+    if (!S.goals.length) return '';
+    const bal = balance(), g = [...S.goals].sort((a, b) => (a.target - bal) - (b.target - bal))[0], need = g.target - bal, can = need <= 0, inc = avgDailyIncome();
+    return `<div class="card">
+      <div class="sechead" style="margin:0 0 8px"><b>Next reward</b><button class="link" data-tab="goals">All goals ›</button></div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px"><b style="font-size:17px">${esc(g.name)}</b><span class="sub" style="margin:0">${tk}${num(Math.max(0, Math.min(bal, g.target)))} of ${tk}${num(g.target)}</span></div>
+      <div class="bar"><i style="width:${Math.max(0, Math.min(100, (bal / g.target) * 100))}%"></i></div>
+      <div class="sub" style="margin-top:6px">${can ? 'You can afford it 🎉' : `${num(need)} to go · about ${Math.max(1, Math.ceil(need / inc))} day${Math.ceil(need / inc) <= 1 ? '' : 's'} at your pace`}</div>
+      ${can ? `<button class="btn" data-buy="${g.id}" style="margin-top:10px">Buy it · ${num(g.target)} Tons</button>` : ''}
+    </div>`;
+  }
   function viewWallet() {
     const bal = balance(), debt = bal < -0.004;
     const act = (k, label, extra) => `<button class="qa" ${extra}><span class="qi">${icon(k)}</span><span>${label}</span></button>`;
@@ -694,6 +720,7 @@
       </div>
       <div class="qas">${act('earn', 'Earn', 'data-pick="care"')}${act('invest', 'Invest', 'data-pick="invest"')}${act('spend', 'Spend', 'data-pick="useless"')}${act('history', 'History', 'data-act="ledger"')}</div>
       ${runningHTML()}
+      ${incomingHTML()}${nextGoalHTML()}
       <div class="sechead"><b>Recent activity</b><button class="link" data-act="ledger">See all</button></div>
       <div class="card txl" id="recent">${recentHTML()}</div>
       <div class="sechead"><b>Where today went</b></div>
