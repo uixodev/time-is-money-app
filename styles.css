@@ -355,3 +355,8 @@ textarea.field{min-height:96px;resize:vertical;line-height:1.4}
 .thumb{width:44px;height:44px;border-radius:12px;object-fit:cover;flex:none;margin-right:10px}
 .gimg{border:1.5px dashed var(--line);border-radius:16px;min-height:90px;display:flex;align-items:center;justify-content:center;overflow:hidden;color:var(--muted);font-size:14px}
 .gimg img{display:block;width:100%;max-height:200px;object-fit:cover}
+
+.cloud{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);margin:-4px 2px 12px}
+.cloud span{flex:1;min-width:0}
+.cd{width:9px;height:9px;border-radius:50%;flex:none;background:var(--muted)}
+.cd.ok{background:#4CAF50}.cd.err{background:#E24B4B}.cd.busy{background:#E0A800;animation:blink 1s step-end infinite}

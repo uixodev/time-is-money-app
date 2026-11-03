@@ -5,7 +5,7 @@
 (() => {
   'use strict';
   const KEY = 'tick.v1';
-  const VERSION = 'v46';   // bump with the ?v= number in index.html so browsers fetch fresh files
+  const VERSION = 'v47';   // bump with the ?v= number in index.html so browsers fetch fresh files
   const DAY = 86400;
   const $ = (s, el = document) => el.querySelector(s);
   // one tonal green family (+ ink) so every deed colour belongs to the brand
@@ -927,6 +927,7 @@
     return `
       ${head('Shop', '<button class="icon-btn" data-act="addgoal" aria-label="Add shop item">+</button>')}
       <div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><div class="sub" style="margin:0">Your gems</div><span class="gv">${gm}<b>${gemN(have)}</b></span></div>${gemsPending() >= 1 ? `<button class="pbtn" data-act="collect">Collect +${gemN(gemsPending())}</button>` : ''}</div>
+      ${cloudLine()}
       <button class="btn lime" data-act="spendany" style="border:1.5px solid var(--ink);margin-bottom:6px">Treat myself — spend on anything</button>
       ${saving.length ? `<h2>Saving up for</h2>${saving.map(savingCard).join('')}` : ''}
       ${cats.map(c => `<div class="glbl" style="margin:16px 2px 8px">${esc(c)}</div><div class="card" style="padding:4px 14px">${shop.filter(g => (g.cat || 'Other') === c).map(row).join('')}</div>`).join('')}
@@ -1247,6 +1248,7 @@
       case 'logpast': logPastSheet(); break;
       case 'addgoal': goalSheet(); break;
       case 'spendany': spendAnySheet(); break;
+      case 'syncnow': if (user) { flash('Syncing…'); syncNow(); } break;
       case 'addinvest': deedSheet(null, 'invest'); break;
     }
   });
@@ -1280,10 +1282,14 @@
   };
   const timeStr = ts => new Date(ts).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
   const syncText = () => !user ? 'Not signed in' : sync.status === 'syncing' ? 'Syncing…' : sync.status === 'error' ? `⚠ ${sync.msg}` : sync.at ? `Synced at ${timeStr(sync.at)}` : 'Waiting to sync';
+  const cloudCls = () => !user ? 'off' : sync.status === 'error' ? 'err' : sync.status === 'syncing' ? 'busy' : 'ok';
+  const cloudText = () => !user ? 'Not connected — sign in to keep your shop on all your devices' : sync.status === 'syncing' ? 'Syncing with your account…' : sync.status === 'error' ? `Sync problem: ${sync.msg}` : sync.at ? `Shop saved to your account · ${timeStr(sync.at)}` : 'Connected — waiting for the first sync…';
+  const cloudLine = () => `<div class="cloud"><i class="cd ${cloudCls()}" id="cloudot"></i><span id="cloudtxt">${cloudText()}</span>${user ? '<button class="chip" data-act="syncnow" style="margin:0">Sync now</button>' : '<button class="chip" data-act="account" style="margin:0">Sign in</button>'}</div>`;
   function setSync(status, msg) {
     sync = { status, msg: msg || '', at: status === 'idle' ? Date.now() : sync.at };
     document.querySelectorAll('.acct').forEach(b => { b.classList.toggle('on', !!user); b.classList.toggle('syncing', status === 'syncing'); });
     const e = $('#ssub'); if (e) e.textContent = syncText();
+    const c = $('#cloudtxt'); if (c) { c.textContent = cloudText(); const d = $('#cloudot'); if (d) d.className = 'cd ' + cloudCls(); }
   }
 
   // Merge two states without losing anything: entries / notes / bought are unioned by id, deeds and goals take the newer edit,
