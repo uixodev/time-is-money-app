@@ -341,3 +341,10 @@ textarea.field{min-height:96px;resize:vertical;line-height:1.4}
 .gemline{display:flex;justify-content:space-between;align-items:center;margin-top:10px;font-size:17px;font-weight:700}
 .gemline b{font-variant-numeric:tabular-nums}
 .big .gm{width:.62em;height:.62em;vertical-align:-.02em}
+
+.gv{display:inline-flex;align-items:center;gap:6px;font-size:30px;font-weight:800;letter-spacing:-.5px;line-height:1.1;font-variant-numeric:tabular-nums}
+.gv i{font-style:normal;font-weight:800}
+.gv .gm{width:26px;height:26px;margin:0;vertical-align:baseline}
+.gv small{font-size:14px;font-weight:600;color:var(--muted);letter-spacing:0;margin-left:2px}
+
+.chip{white-space:nowrap}

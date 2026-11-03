@@ -727,7 +727,7 @@
     const perDay = invs.reduce((a, x) => a + x.perDay, 0), pend = gemsPending();
     return `<div class="card">
       <div class="sechead" style="margin:0 0 8px"><b>Incoming gems</b><button class="link" data-tab="invest">Invest ›</button></div>
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><span class="mid" style="font-size:26px">${S.divAuto ? '' : '+'}${gm} ${S.divAuto ? gemRate(perDay) : gemN(pend)}<small>${S.divAuto ? ' / day' : ''}</small></span><div class="sub" style="margin:0">${S.divAuto ? 'Paid straight into your gems' : 'ready to collect · building ≈ ' + gemRate(perDay) + ' / day'}</div></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><span class="gv">${S.divAuto ? '' : '<i>+</i>'}${gm}<b>${S.divAuto ? gemRate(perDay) : gemN(pend)}</b>${S.divAuto ? '<small>/ day</small>' : ''}</span><div class="sub" style="margin:0">${S.divAuto ? 'Paid straight into your gems' : 'ready · building ≈ ' + gemRate(perDay) + ' a day'}</div></div>
         ${S.divAuto ? '' : `<button class="pbtn" data-act="collect" ${pend < 1 ? 'disabled style="opacity:.4"' : ''}>Collect</button>`}</div>
       ${S.divAuto ? '' : `<div class="bar"><i style="width:${Math.round(gemFrac() * 100)}%"></i></div><div class="sub" style="margin-top:6px">Next gem is ${Math.round(gemFrac() * 100)}% there.</div>`}
       ${invs.slice(0, 3).map(x => `<div class="row" style="padding:8px 0 0"><i class="dot" style="background:${x.d.color}"></i><div class="t"><b>${esc(x.d.name)}</b></div><div class="r"><b>+${gemRate(x.perDay)}/day</b></div></div>`).join('')}
@@ -858,9 +858,9 @@
         ${divChart()}
         <div class="hrow"><span>Last 14 days</span><span>gems earned per day · fades 2% without practice</span></div>
       </div>
-      <div class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><div class="sub" style="margin:0">${S.divAuto ? 'Auto-pay is on' : 'Ready to collect'}</div><div class="mid" style="font-size:26px">${S.divAuto ? 'Paid as it builds' : '+' + gm + ' ' + gemN(pend)}</div></div>${S.divAuto ? '' : `<button class="pbtn" data-act="collect" ${pend < 1 ? 'disabled style="opacity:.4"' : ''}>Collect</button>`}</div>
+      <div class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><div class="sub" style="margin:0">${S.divAuto ? 'Auto-pay is on' : 'Ready to collect'}</div>${S.divAuto ? '<div class="mid" style="font-size:22px">Paid as it builds</div>' : `<span class="gv"><i>+</i>${gm}<b>${gemN(pend)}</b></span>`}</div>${S.divAuto ? '' : `<button class="pbtn" data-act="collect" ${pend < 1 ? 'disabled style="opacity:.4"' : ''}>Collect</button>`}</div>
         ${S.divAuto ? '' : `<div class="bar"><i style="width:${Math.round(gemFrac() * 100)}%"></i></div><div class="sub" style="margin-top:6px">Next gem is ${Math.round(gemFrac() * 100)}% there.</div>`}
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;gap:10px"><span class="sub" style="margin:0">${S.divAuto ? 'Gems go straight into your pocket.' : 'Gems build up until you collect them.'}</span><button class="chip" style="margin:0" data-act="autopay">Auto-pay: ${S.divAuto ? 'on' : 'off'}</button></div></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;gap:10px"><span class="sub" style="margin:0">${S.divAuto ? 'Gems go straight into your pocket.' : 'Gems build up until you collect.'}</span><button class="chip" style="margin:0" data-act="autopay">Auto-pay: ${S.divAuto ? 'on' : 'off'}</button></div></div>
       <div class="grid2">
         <div class="card"><div class="sub" style="margin:0">Tons invested</div><div class="mid" style="font-size:26px">${tk}${num(spent)}</div></div>
         <div class="card"><div class="sub" style="margin:0">Gems earned</div><div class="mid" style="font-size:26px">${gm} ${gemN(earnedG)}</div></div>
