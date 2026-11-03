@@ -5,7 +5,7 @@
 (() => {
   'use strict';
   const KEY = 'tick.v1';
-  const VERSION = 'v41';   // bump with the ?v= number in index.html so browsers fetch fresh files
+  const VERSION = 'v42';   // bump with the ?v= number in index.html so browsers fetch fresh files
   const DAY = 86400;
   const $ = (s, el = document) => el.querySelector(s);
   // one tonal green family (+ ink) so every deed colour belongs to the brand
@@ -147,6 +147,8 @@
     history: '<path d="M5 20V11M12 20V4M19 20v-6"/>',
     earn: '<path d="M12 5v14M5 12h14"/>',
     spend: '<path d="M7 17L17 7M8 7h9v9"/>',
+    sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+    moon: '<path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5z"/>',
     account: '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/>',
   };
   const icon = k => `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[k]}</svg>`;
@@ -347,7 +349,7 @@
     const cv = document.createElement('canvas'); cv.className = 'confetti';
     const dpr = window.devicePixelRatio || 1; cv.width = box.width * dpr; cv.height = box.height * dpr; app.appendChild(cv);
     const ctx = cv.getContext('2d'); ctx.scale(dpr, dpr);
-    const dark = window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches;
+    const dark = isDark();
     const COL = ['#C9F26B', '#6FBF3B', '#2F6B2A', dark ? '#F5F8EC' : '#16210F', '#A9C79B', '#C9F26B'];
     const mk = (x, y, vx, vy) => ({ x, y, vx, vy, w: 7 + Math.random() * 7, h: 5 + Math.random() * 7, rot: Math.random() * 6, vr: (Math.random() - 0.5) * 0.4, c: COL[(Math.random() * COL.length) | 0], round: Math.random() < 0.3 });
     const P = [
@@ -490,11 +492,14 @@
       <div class="sub" style="margin-top:8px"><b>Combine deeds:</b> you can run up to <b>3 at once</b> — each earns or costs Tons at its own rate, so cleaning while you learn works.</div>
       <div class="sub" style="margin-top:8px"><b>Investments</b> (learning, projects) cost Tons now and <b>pay daily dividends</b> later. <b>Useless</b> deeds just cost — and cost 50% more if you're in debt.</div>
       ${coinList()}
+      <div class="sub" style="margin-top:12px"><b>Appearance</b></div>
+      <div class="seg" id="theme">${[['auto', 'Auto'], ['light', 'Light'], ['dark', 'Dark']].map(([k, l]) => `<button type="button" data-t="${k}" class="${getTheme() === k ? 'on' : ''}">${l}</button>`).join('')}</div>
       <label class="switch"><input type="checkbox" id="snd" ${S.sound ? 'checked' : ''}><span>Celebration sounds</span></label>
       <button class="btn" id="ok">${first ? `Start with ${S.gift} Tons` : 'Got it'}</button>
       ${first ? '<button class="link" id="signin">Already have an account? Sign in</button>' : '<button class="link" id="reset">Reset all data</button>'}
       ${first ? '' : '<button class="link" id="bk">Backup &amp; restore</button>'}
       <div class="sub" style="text-align:center;margin-top:10px;font-size:12px">Tons ${VERSION}</div>`, w => {
+      $('#theme', w).onclick = e => { const b = e.target.closest('[data-t]'); if (!b) return; setTheme(b.dataset.t); w.querySelectorAll('#theme button').forEach(x => x.classList.toggle('on', x === b)); render(); };
       $('#snd', w).onchange = e => { S.sound = e.target.checked; save(); if (S.sound) chime(); };
       $('#ok', w).onclick = () => { S.onboarded = true; save(); closeSheet(); render(); };
       const si = $('#signin', w); if (si) si.onclick = () => { S.onboarded = true; save(); closeSheet(); accountSheet(); };
@@ -591,7 +596,14 @@
   }
 
   // ---------- views ----------
-  const head = (title, extra = '') => `<div class="head"><h1>${title}</h1><div style="display:flex;gap:8px">${extra}<button class="icon-btn acct ${user ? 'on' : ''} ${sync.status === 'syncing' ? 'syncing' : ''}" data-act="account" aria-label="Account">${icon('account')}</button><button class="icon-btn" data-act="about" aria-label="How Tons works">${symbol(26)}</button></div></div>`;
+  // appearance: 'auto' follows the phone, or force light / dark. Per device (not synced).
+  const getTheme = () => { try { const t = localStorage.getItem('tick.theme'); return t === 'light' || t === 'dark' ? t : 'auto'; } catch { return 'auto'; } };
+  const isDark = () => { const t = getTheme(); return t === 'dark' || (t === 'auto' && !!(window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches)); };
+  function setTheme(t) {
+    try { if (t === 'auto') localStorage.removeItem('tick.theme'); else localStorage.setItem('tick.theme', t); } catch {}
+    if (t === 'auto') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', t);
+  }
+  const head = (title, extra = '') => `<div class="head"><h1>${title}</h1><div style="display:flex;gap:8px">${extra}<button class="icon-btn" data-act="theme" aria-label="Switch dark / light mode">${icon(isDark() ? 'sun' : 'moon')}</button><button class="icon-btn acct ${user ? 'on' : ''} ${sync.status === 'syncing' ? 'syncing' : ''}" data-act="account" aria-label="Account">${icon('account')}</button><button class="icon-btn" data-act="about" aria-label="How Tons works">${symbol(26)}</button></div></div>`;
   const purseHTML = () => {
     let b = Math.max(0, Math.floor(balance()));
     return ['hundred', 'ten', 'tick'].map(k => {
@@ -1136,6 +1148,7 @@
       case 'stopall': stopAll(); break;
       case 'histmore': histMore = !histMore; render(); break;
       case 'about': aboutSheet(false); break;
+      case 'theme': setTheme(isDark() ? 'light' : 'dark'); render(); break;
       case 'account': accountSheet(); break;
       case 'backup': backupSheet(); break;
       case 'collect': collectDividends(); break;

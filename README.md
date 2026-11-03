@@ -84,6 +84,8 @@ The currency is **Tons**. Its sign is a **slanted-strike T**: a T struck by a sl
 - **Goals** – rewards to save Tons for. Edit (✎), then **Buy it** — with confetti and a chime (switch sounds off in the sign button).
 - **History** – switch between 7 and 30 days: net Tons, care streak, best day, averages, an earned-vs-spent chart, *where your Tons went* (care, dividends, investing, useless time, rewards), *where your time went*, your Journal and day by day.
 
+Dark / light: tap the **moon/sun** button in any screen's header to switch, or choose **Auto / Light / Dark** in the sign button menu (Auto follows your phone). The choice is remembered per device.
+
 Colours: light lime `#C9F26B`, forest ink `#16210F`, tonal greens. Dark mode included.
 
 ## Accounts & cloud sync (Supabase)
