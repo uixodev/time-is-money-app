@@ -5,7 +5,7 @@
 (() => {
   'use strict';
   const KEY = 'tick.v1';
-  const VERSION = 'v29';   // bump with the ?v= number in index.html so browsers fetch fresh files
+  const VERSION = 'v30';   // bump with the ?v= number in index.html so browsers fetch fresh files
   const DAY = 86400;
   const $ = (s, el = document) => el.querySelector(s);
   // one tonal green family (+ ink) so every deed colour belongs to the brand
@@ -88,6 +88,10 @@
     if (S.balanceV !== 2) {                                              // v28 rebalance: investing costs half as much (once)
       S.deeds.forEach(d => { if (d.kind === 'invest' && d.rate >= 0.5) { d.rate = d.rate / 2; d.mod = Date.now(); } });
       S.balanceV = 2;
+    }
+    if (!S.entries.some(e => e.id === 'adjust:v30')) {                   // v30 fair start (once, same id on every device): old debt is wiped, balance goes back to the welcome Tons
+      const have = S.gift + S.entries.reduce((x, e) => x + e.ticks, 0);
+      if (have < S.gift - 0.004) S.entries.push({ id: 'adjust:v30', deedId: 'adjust:v30', ts: Date.now(), secs: 0, ticks: S.gift - have });
     }
     delete S.timerStyle; delete S.pickedLook;   // the look switcher is gone: everyone has the Big number timer
     if (S.active && (!Array.isArray(S.actives) || !S.actives.length)) S.actives = [{ id: 'run-' + S.active.start, ...S.active }];   // older saves had ONE running session (defaults already add an empty list)
