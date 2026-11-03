@@ -5,7 +5,7 @@
 (() => {
   'use strict';
   const KEY = 'tick.v1';
-  const VERSION = 'v31';   // bump with the ?v= number in index.html so browsers fetch fresh files
+  const VERSION = 'v32';   // bump with the ?v= number in index.html so browsers fetch fresh files
   const DAY = 86400;
   const $ = (s, el = document) => el.querySelector(s);
   // one tonal green family (+ ink) so every deed colour belongs to the brand
@@ -627,39 +627,35 @@
   // balance at the start of today = balance now − what today added + what today took
   const startBal = () => { const { earned, spent } = dayEarnSpend(0); return balance() - earned + spent; };
   const startLine = () => { const b = startBal(); return b < -0.004 ? `Started today in debt: −${t1(b)}` : `Started today with ${t1(b)}`; };
+  let histFilter = 'all';
   function ledgerSheet() {
-    const offs = Array.from({ length: 30 }, (_, i) => 29 - i).filter(off => dayStart(off) + 86400000 > S.created);
-    let run = S.gift;
-    const adjBefore = d => S.entries.filter(e => isAdjust(e) && e.ts < d).reduce((a, e) => a + e.ticks, 0);
-    const rows = offs.map(off => {
-      const [d0, d1] = dayRange(off), { earned, spent } = dayEarnSpend(off);
-      const adj = S.entries.filter(e => isAdjust(e) && e.ts >= d0 && e.ts < d1).reduce((a, e) => a + e.ticks, 0);
-      run += earned - spent + adj;
-      return { off, d0, earned, spent, adj, end: run };
-    }).reverse();
-    const cost = {}, gain = {};
-    const from = dayStart(29);
-    const add = (id, t) => { if (!t) return; const m = t > 0 ? gain : cost; m[id] = (m[id] || 0) + Math.abs(t); };
-    S.entries.forEach(e => { if (e.ts >= from && !isAdjust(e)) add(e.deedId, e.ticks); });
-    S.actives.forEach(a => add(a.deedId, activeTicksOf(a, from, Infinity)));
-    const top = (m, sign) => Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([id, v]) => `<div class="crow"><div class="cn"><span>${esc(deedOf(id).name)}</span><b>${sign}${t1(v)}</b></div></div>`).join('') || '<div class="sub">Nothing yet.</div>';
-    const bal = balance(), debt = bal < -0.004;
-    openSheet(`<h3>Where did my Tons go?</h3>
-      <div class="sub">Your balance is a running total: <b>${S.gift} welcome Tons</b>, plus everything you earned, minus everything you spent — and it carries over from day to day. Today starts from yesterday's balance.</div>
-      <div class="card" style="margin-top:12px">${rows.map(r => `<div style="display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid var(--line, rgba(0,0,0,.08))"><span>${r.off === 0 ? 'Today' : r.off === 1 ? 'Yesterday' : new Date(r.d0).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}<span class="sub"> +${t1(r.earned)} · −${t1(r.spent)}${Math.abs(r.adj) > 0.004 ? ' · fresh start' : ''}</span></span><b>${r.end < -0.004 ? '−' : ''}${t1(r.end)}</b></div>`).join('')}
-        <div class="sub" style="margin-top:6px">The number on the right is your balance at the end of that day.</div></div>
-      <div class="mid" style="margin-top:12px">Biggest costs (30 days)</div>${top(cost, '−')}
-      <div class="mid" style="margin-top:12px">Biggest earnings (30 days)</div>${top(gain, '+')}
-      ${debt ? `<div class="sub" style="margin-top:10px">You're below zero, so useless time costs +50% until you're back above it. Earned Tons repay the debt first.</div>` : ''}
-      ${bal < S.gift - 0.004 ? '<button class="btn" id="fresh" style="margin-top:12px">Start fresh at ' + S.gift + ' Tons</button><div class="sub">Keeps all your history and notes — it only resets the balance.</div>' : ''}
-      <button class="btn lime" id="ok" style="margin-top:10px;border:1.5px solid var(--ink)">Close</button>`, w => {
+    const from = dayStart(29), rows = [];
+    S.entries.forEach(e => { if (e.ts >= from && e.ticks) rows.push({ ts: e.ts, t: e.ticks, secs: e.secs, e, d: deedOf(e.deedId) }); });
+    S.actives.forEach(a => { const t = activeTicksOf(a, from, Infinity); if (Math.abs(t) > 0.004) rows.push({ ts: a.start, t, secs: elapsedOf(a), live: true, d: deedOf(a.deedId) }); });
+    rows.sort((a, b) => b.ts - a.ts);
+    const sel = rows.filter(r => histFilter === 'all' || (histFilter === 'in' ? r.t > 0 : r.t < 0));
+    const by = {}; sel.forEach(r => { if (r.e && isAdjust(r.e)) return; const k = r.live ? (r.d.kind === 'care' ? 'care' : r.d.kind === 'invest' ? 'invest' : 'useless') : catOf(r.e); const key = (r.t > 0 ? '+' : '−') + k; by[key] = (by[key] || 0) + Math.abs(r.t); });
+    const inT = rows.filter(r => r.t > 0 && !(r.e && isAdjust(r.e))).reduce((a, r) => a + r.t, 0), outT = rows.filter(r => r.t < 0 && !(r.e && isAdjust(r.e))).reduce((a, r) => a - r.t, 0);
+    const mx = Math.max(1, ...Object.values(by));
+    const cats = Object.entries(by).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<div class="crow"><div class="cn"><span>${CAT[k.slice(1)]}</span><b>${k[0]}${t1(v)}</b></div><div class="cb"><i class="${k[0] === '+' ? 'in' : 'out'}" style="width:${(v / mx) * 100}%"></i></div></div>`).join('');
+    const dayLbl = ts => { const off = Math.round((dayStart(0) - new Date(ts).setHours(0, 0, 0, 0)) / 86400000); return off === 0 ? 'Today' : off === 1 ? 'Yesterday' : new Date(ts).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }); };
+    let last = '', list = '';
+    sel.slice(0, 150).forEach(r => {
+      const dl = dayLbl(r.ts); if (dl !== last) { last = dl; list += `<div class="sub" style="margin:14px 0 4px;font-weight:700">${dl}</div>`; }
+      const adj = r.e && isAdjust(r.e), why = adj ? 'Balance reset to the welcome Tons' : r.live ? 'running now' : r.e.div ? 'daily dividend' : (CAT[catOf(r.e)] + (r.secs > 0 ? ' · ' + dur(r.secs) : ''));
+      const time = new Date(r.ts).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+      list += `<div style="display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid rgba(128,128,128,.18)"><span><b>${esc(r.d.name)}</b><br><span class="sub">${esc(why)} · ${time}</span></span><b style="white-space:nowrap">${r.t > 0 ? '+' : '−'}${t1(r.t)}</b></div>`;
+    });
+    const chip = (k, l) => `<button class="chip" data-hf="${k}" style="margin:0 6px 0 0;${histFilter === k ? 'background:var(--btn-bg);color:var(--btn-fg)' : 'background:none;color:inherit'}">${l}</button>`;
+    openSheet(`<h3>History</h3>
+      <div class="sub">Last 30 days · earned <b>+${t1(inT)}</b> · spent <b>−${t1(outT)}</b></div>
+      <div style="margin:10px 0 4px">${chip('all', 'All')}${chip('in', 'Earned')}${chip('out', 'Spent')}</div>
+      ${cats ? `<div style="margin-top:10px;font-size:15px;font-weight:700">${histFilter === 'in' ? 'Where you earned' : histFilter === 'out' ? 'Where you spent' : 'Where Tons came from and went'}</div>${cats}` : ''}
+      <div style="margin-top:14px;font-size:15px;font-weight:700">${histFilter === 'in' ? 'Every earning' : histFilter === 'out' ? 'Every purchase and cost' : 'Everything, newest first'}</div>
+      ${list || '<div class="sub">Nothing here yet.</div>'}
+      <button class="btn lime" id="ok" style="margin-top:14px;border:1.5px solid var(--ink)">Close</button>`, w => {
       $('#ok', w).onclick = closeSheet;
-      const f = $('#fresh', w);
-      if (f) f.onclick = () => {
-        if (!confirm(`Reset your balance to ${S.gift} Tons? Your history and notes are kept.`)) return;
-        S.entries.push({ id: uid(), deedId: 'adjust:' + uid(), ts: Date.now(), secs: 0, ticks: S.gift - balance() });
-        save(); closeSheet(); render(); flash('Fresh start — balance reset');
-      };
+      w.querySelectorAll('[data-hf]').forEach(b => b.onclick = () => { const sc = w.firstElementChild.scrollTop; histFilter = b.dataset.hf; ledgerSheet(); const n = $('#sheet').firstElementChild; if (n) n.scrollTop = sc; });
     });
   }
 
@@ -670,9 +666,7 @@
       <div class="card hero ${debt ? 'debt' : ''}" id="balhero">
         <div class="lbl" id="ballbl">${debt ? 'In debt · useless time costs +50%' : 'Your Tons'}</div>
         <div class="big live" id="bal">${tk}${tBig(bal)}</div>
-        <div class="sub live" id="startline">${startLine()}</div>
-        <div class="sub live" id="earnline">+${t1(earned)} earned today · −${t1(spent)} spent</div>
-        <button class="chip" data-act="ledger" style="margin:10px 0 0;background:none;color:inherit">Where did my Tons go? ›</button>
+        <button class="chip" data-act="ledger" style="margin:12px 0 0;background:none;color:inherit">View history ›</button>
       </div>
       <div class="purse" id="purse">${purseHTML()}</div>
       <div class="card">
@@ -901,8 +895,6 @@
     set('#bal', tk + tBig(bal));
     set('#ballbl', debt ? 'In debt · useless time costs +50%' : 'Your Tons');
     const hero = $('#balhero'); if (hero) hero.classList.toggle('debt', debt);
-    set('#startline', startLine());
-    set('#earnline', `+${t1(earned)} earned today · −${t1(spent)} spent`);
     set('#hscore', `${Math.round(hs)}<small>%</small>`); set('#hsub', healthSub()); set('#pillars', pillarsHTML());
     set('#hms', hms(dayRemaining())); set('#tracked', `${dur(trackedToday())} tracked today · 86,400 seconds a day for everyone · expires at midnight`);
     if ($('#divs')) set('#divs', tk + tBig(S.deeds.filter(d => d.kind === 'invest').reduce((a, d) => a + dividendPerDay(d), 0)));
