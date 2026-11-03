@@ -5,7 +5,7 @@
 (() => {
   'use strict';
   const KEY = 'tick.v1';
-  const VERSION = 'v27';   // bump with the ?v= number in index.html so browsers fetch fresh files
+  const VERSION = 'v28';   // bump with the ?v= number in index.html so browsers fetch fresh files
   const DAY = 86400;
   const $ = (s, el = document) => el.querySelector(s);
   // one tonal green family (+ ink) so every deed colour belongs to the brand
@@ -14,13 +14,13 @@
   // ---------- state ----------
   // Health: seven pillars, each a 0–100 gauge that drains over time and refills with care deeds
   const PILLARS = {
-    sleep:   { name: 'Sleep',   decay: 4.5, price: 0.6 },   // decay = points lost per hour · price = Tons earned per point refilled
-    food:    { name: 'Food',    decay: 6,   price: 0.35 },
-    move:    { name: 'Move',    decay: 2,   price: 1 },
-    hygiene: { name: 'Hygiene', decay: 3,   price: 0.3 },
-    home:    { name: 'Home',    decay: 1.5, price: 0.7 },
-    family:  { name: 'Family',  decay: 1.2, price: 0.8 },
-    allah:   { name: 'Allah',   decay: 3,   price: 0.6 },   // faith: prayer, Quran, remembrance — about five prayers' worth of drain a day
+    sleep:   { name: 'Sleep',   decay: 4.5, price: 0.9 },   // decay = points lost per hour · price = Tons earned per point refilled (raised 50% in v28)
+    food:    { name: 'Food',    decay: 6,   price: 0.525 },
+    move:    { name: 'Move',    decay: 2,   price: 1.5 },
+    hygiene: { name: 'Hygiene', decay: 3,   price: 0.45 },
+    home:    { name: 'Home',    decay: 1.5, price: 1.05 },
+    family:  { name: 'Family',  decay: 1.2, price: 1.2 },
+    allah:   { name: 'Allah',   decay: 3,   price: 0.9 },   // faith: prayer, Quran, remembrance — about five prayers' worth of drain a day
   };
   const MAX_ACTIVE = 3;           // deeds you can run at the same time
   const HEALTH_MIN = 40;          // below this overall Health you can't start an investment
@@ -33,8 +33,8 @@
   //       invest (costs rate Tons/min now, pays daily dividends later) · useless (costs rate Tons/min) · neutral (time only)
   // care timer: pts = health % per minute · care tap: pts = health % per check-in
   const defaultDeeds = () => [
-    { id: 'd1',  name: 'Deep work',     color: PALETTE[0], kind: 'invest', rate: 0.5 },
-    { id: 'd12', name: 'Learn to code', color: PALETTE[1], kind: 'invest', rate: 0.5 },
+    { id: 'd1',  name: 'Deep work',     color: PALETTE[0], kind: 'invest', rate: 0.25 },
+    { id: 'd12', name: 'Learn to code', color: PALETTE[1], kind: 'invest', rate: 0.25 },
     { id: 'd7',  name: 'Workout',     color: PALETTE[1], kind: 'care', pillar: 'move',    mode: 'timer', pts: 1.2, rate: 2 },
     { id: 'd2',  name: 'Sleep',       color: PALETTE[2], kind: 'care', pillar: 'sleep',   mode: 'timer', pts: 0.2, rate: 0.3 },
     { id: 'd8',  name: 'Meal',        color: PALETTE[3], kind: 'care', pillar: 'food',    mode: 'tap',   pts: 35,  rate: 3 },
@@ -85,6 +85,10 @@
     defaultDeeds().filter(n => n.kind === 'care' && !covered.has(n.pillar)).forEach(n => S.deeds.push({ ...n }));   // a pillar with no deed yet gets its starters
     S.entries.forEach(e => { if (typeof e.ticks !== 'number') { const d = S.deeds.find(x => x.id === e.deedId); e.ticks = d ? sgn(d) * d.rate * e.secs / 60 : 0; } });
     S.goals = S.goals.filter(g => g.target);
+    if (S.balanceV !== 2) {                                              // v28 rebalance: investing costs half as much (once)
+      S.deeds.forEach(d => { if (d.kind === 'invest' && d.rate >= 0.5) { d.rate = d.rate / 2; d.mod = Date.now(); } });
+      S.balanceV = 2;
+    }
     delete S.timerStyle; delete S.pickedLook;   // the look switcher is gone: everyone has the Big number timer
     if (S.active && (!Array.isArray(S.actives) || !S.actives.length)) S.actives = [{ id: 'run-' + S.active.start, ...S.active }];   // older saves had ONE running session (defaults already add an empty list)
     delete S.active; delete S.lastStopped;
@@ -152,6 +156,7 @@
   const tBig = n => { const neg = n < -0.004; const [i, d] = Math.abs(n).toFixed(2).split('.'); return `${neg ? '−' : ''}${Number(i).toLocaleString()}<small>.${d}</small>`; };
   const t1 = n => (Math.round(Math.abs(n) * 10) / 10).toLocaleString(undefined, { maximumFractionDigits: 1 });
   const signed = n => (n > 0.04 ? '+' : n < -0.04 ? '−' : '') + t1(n);
+  const nf2 = x => String(Math.round(x * 100) / 100);   // costs per minute need two decimals (0.25 must not read as 0.3)
   const nf = x => Number.isInteger(x) ? String(x) : String(Math.round(x * 10) / 10);
   const dayStart = off => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - off); return d.getTime(); };
   const nextMidnight = () => { const d = new Date(); d.setHours(24, 0, 0, 0); return d.getTime(); };
@@ -165,7 +170,7 @@
   const perSec = perMin => fmtSec(perMin / 60);
   const leftLbl = d => { const r = roomTons(d.pillar); return r < 0.05 ? 'full' : `${t1(r)} left`; };   // Tons still earnable from this deed's pillar
   // care timers are labelled in Tons per second; check-ins in Tons each; costs stay per minute
-  const rateLbl = d => d.kind === 'invest' || d.kind === 'useless' ? `−${nf(d.rate)}/min`
+  const rateLbl = d => d.kind === 'invest' || d.kind === 'useless' ? `−${nf2(d.rate)}/min`
     : d.kind === 'care' ? (d.mode === 'tap' ? `+${nf(careRate(d))} Tons each` : `+${perSec(careRate(d))} Tons/sec`) : 'no Tons';
   const dayRange = off => [dayStart(off), off === 0 ? nextMidnight() : dayStart(off - 1)];
 
@@ -496,6 +501,7 @@
       .map(g => ({ id: g.id, name: TXT(g.name, 40), target: g.target, ...(N(g.created) ? { created: g.created } : {}), ...(N(g.mod) ? { mod: g.mod } : {}) }));
     out.bought = A(d.bought).filter(b => b && ID(b.id) && T(b.name) && N(b.cost) && N(b.ts)).map(b => ({ id: b.id, name: TXT(b.name, 40), cost: b.cost, ts: b.ts }));
     out.tomb = A(d.tomb).filter(ID);
+    if (d.balanceV === 2) out.balanceV = 2;
     out.chat = A(d.chat).filter(c => c && (c.from === 'me' || c.from === 'bot') && T(c.text)).map(c => ({ from: c.from, text: TXT(c.text, 600) })).slice(-40);
     if (d.health && typeof d.health === 'object') { out.health = {}; Object.keys(PILLARS).forEach(k => { const h = d.health[k]; if (h && N(h.v) && N(h.t)) out.health[k] = { v: clamp(h.v, 0, 100), t: h.t }; }); }
     out.actives = [...A(d.actives), ...(d.active ? [d.active] : [])].filter(a => a && ID(a.deedId) && N(a.start)).slice(0, MAX_ACTIVE)
@@ -673,14 +679,14 @@
     const mt = l.replace(/,/g, '').match(/(\d+(?:\.\d+)?)\s*(?:ticks?|gems?|tons?)\b/);
     if (mt) {
       const n = parseFloat(mt[1]), useless = S.deeds.filter(d => d.kind === 'useless').map(d => d.rate), avgU = useless.length ? useless.reduce((a, b) => a + b, 0) / useless.length : 1;
-      return `${num(n)} Tons is about ${dur(n / avgU * 60)} of useless fun, or ${dur(n / 0.5 * 60)} of investing at 0.5/min.\nAt your pace (${t1(avgDailyIncome())}/day) you earn that in ${Math.max(1, Math.ceil(n / avgDailyIncome()))} day(s).`;
+      return `${num(n)} Tons is about ${dur(n / avgU * 60)} of useless fun, or ${dur(n / 0.25 * 60)} of investing at 0.25/min.\nAt your pace (${t1(avgDailyIncome())}/day) you earn that in ${Math.max(1, Math.ceil(n / avgDailyIncome()))} day(s).`;
     }
     const secs = parseDur(q);
     if (secs !== null) {
       const d = named || { kind: 'useless', rate: 1, name: 'useless time' }, m = secs / 60, pct = (secs / DAY * 100).toFixed(1);
       if (d.kind === 'invest') {
         const cost = d.rate * m, perDay = (secs / 3600) * d.rate * DIV_PER_RATE, back = perDay > 0 ? Math.ceil(cost / perDay) : 0;
-        return `${dur(secs)} of ${d.name} costs ${t1(cost)} Tons (${nf(d.rate)}/min).\nIt adds about ${t1(perDay)} Tons a day in dividends, fading 2% a day if you stop practising.\nBreak-even in roughly ${back} days.` + (gated() ? '\nBut Health is too low to start it right now.' : '');
+        return `${dur(secs)} of ${d.name} costs ${t1(cost)} Tons (${nf2(d.rate)}/min).\nIt adds about ${t1(perDay)} Tons a day in dividends, fading 2% a day if you stop practising.\nBreak-even in roughly ${back} days.` + (gated() ? '\nBut Health is too low to start it right now.' : '');
       }
       if (d.kind === 'care') return d.mode === 'tap' ? `${d.name} is a quick check-in worth up to +${nf(careRate(d))} Tons.` : `${dur(secs)} of ${d.name} earns up to +${t1(careRate(d) * m)} Tons (${perSec(careRate(d))} Tons/sec) — but ${PILLARS[d.pillar].name} can only pay ${t1(roomTons(d.pillar))} more right now.`;
       if (d.kind === 'useless') {
@@ -714,7 +720,7 @@
       ${st.length ? st.map(x => `
         <div class="card">
           <div style="display:flex;justify-content:space-between;align-items:center"><div class="mid">${esc(x.d.name)}</div><button class="x edit" data-edit="${x.d.id}" aria-label="Edit ${esc(x.d.name)}">✎</button></div>
-          <div class="sub">${nf(x.hours * 10 / 10)}h invested · skill ${x.skill.toFixed(1)}h · costs ${nf(x.d.rate)} Tons/min</div>
+          <div class="sub">${nf(x.hours * 10 / 10)}h invested · skill ${x.skill.toFixed(1)}h · costs ${nf2(x.d.rate)} Tons/min</div>
           <div class="grid2" style="margin:12px 0 0">
             <div><div class="mid" style="font-size:24px">${tk}${t1(x.perDay)}</div><div class="sub">dividend / day</div></div>
             <div><div class="mid" style="font-size:24px">${x.spent >= 1 ? (x.roi >= 0 ? '+' : '−') + Math.abs(Math.round(x.roi * 100)) + '%' : '—'}</div><div class="sub">return so far</div></div>
@@ -895,7 +901,7 @@
       ${ed ? '<button class="link" id="del">Delete this deed</button>' : ''}`, w => {
       $('#dk', w).value = ed ? ed.kind : (presetKind || 'invest');
       const fillRate = () => { const k = $('#dk', w).value; $('#dr', w).innerHTML = k === 'useless' ? RATE_USELESS : RATE_INVEST; $('#rl', w).textContent = k === 'useless' ? 'How useless? (cost per minute)' : 'How expensive? (cost per minute)'; };
-      fillRate(); $('#dr', w).value = String(ed && (ed.kind === 'invest' || ed.kind === 'useless') ? ed.rate : ($('#dk', w).value === 'useless' ? 1 : 0.5));
+      fillRate(); $('#dr', w).value = String(ed && (ed.kind === 'invest' || ed.kind === 'useless') ? ed.rate : ($('#dk', w).value === 'useless' ? 1 : 0.25));
       $('#cp', w).value = ed && ed.pillar ? ed.pillar : 'sleep';
       $('#cm', w).value = ed && ed.mode ? ed.mode : 'timer';
       const defVal = tap => (tap ? '5' : '0.01');                                   // a sensible starting rate for each kind
