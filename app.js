@@ -5,7 +5,7 @@
 (() => {
   'use strict';
   const KEY = 'tick.v1';
-  const VERSION = 'v43';   // bump with the ?v= number in index.html so browsers fetch fresh files
+  const VERSION = 'v44';   // bump with the ?v= number in index.html so browsers fetch fresh files
   const DAY = 86400;
   const $ = (s, el = document) => el.querySelector(s);
   // one tonal green family (+ ink) so every deed colour belongs to the brand
@@ -25,6 +25,7 @@
   const MAX_ACTIVE = 3;           // deeds you can run at the same time
   const HEALTH_MIN = 40;          // below this overall Health you can't start an investment
   const FADE = 0.98;              // skills fade 2% a day without practice
+  const GEM_PER_DIV = 5;          // investments pay in GEMS (whole numbers): 1 Ton of dividend = 5 gems
   const DIV_PER_RATE = 2;         // dividend: Tons/day per effective hour, per Tons/min of cost (0.5/min → 1 Tons/day per hour)
   const DEBT_SURCHARGE = 1.5;     // useless time costs +50% while you're in debt
   const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
@@ -92,6 +93,12 @@
     // v31 fair start (once, same id on every device): the balance at the START of today is the welcome Tons, so today's earnings add on top of it
     if (typeof S.divCollected !== 'number') S.divCollected = S.entries.reduce((a, e) => a + (e.div ? e.ticks : 0), 0);   // v40: dividends you've already received count as collected
     if (typeof S.divAuto !== 'boolean') S.divAuto = false;
+    if (S.gemsV !== 1) {                                               // v44: investments pay in gems. Tons dividends you already collected stay in your balance; what was still waiting becomes gems.
+      S.divLegacy = Math.min(S.divCollected || 0, S.entries.reduce((a, e) => a + (e.div ? e.ticks : 0), 0));
+      if (typeof S.gemsCollected !== 'number') S.gemsCollected = 0;
+      S.goals.forEach(g => { g.target = Math.max(1, Math.round(g.target / 5)); g.mod = Date.now(); });   // goals are now priced in gems
+      S.gemsV = 1;
+    }
     if (!Array.isArray(S.tomb)) S.tomb = [];
     if (S.entries.some(e => e.id === 'adjust:v30')) { S.entries = S.entries.filter(e => e.id !== 'adjust:v30'); if (!S.tomb.includes('adjust:v30')) S.tomb.push('adjust:v30'); }   // the v30 reset was dated "now" and hid today's earnings
     if (!S.entries.some(e => e.id === 'adjust:v31')) {
@@ -136,6 +143,9 @@
   const signSVG = (cls, size) => `<svg ${cls ? `class="${cls}"` : ''} ${size ? `width="${size}" height="${size}"` : ''} viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${SIGN}</svg>`;
   const markSVG = size => signSVG('', size);
   const tk = signSVG('tk');
+  const gm = '<svg class="gm" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 12H46L58 26L32 56L6 26Z"/><path d="M6 26H58M24 12L20 26L32 56L44 26L40 12"/></svg>';
+  const gemN = n => Math.round(n).toLocaleString();
+  const gemRate = n => n >= 9.5 ? gemN(n) : n < 0.05 ? '0' : String(Math.round(n * 10) / 10);   // per-day RATES can be fractions; counts are always whole
   const symbol = (size = 26) => signSVG('', size);
 
   // consistent 24px line icons for the tab bar
@@ -187,7 +197,7 @@
   // care timers are labelled in Tons per second; check-ins in Tons each; costs stay per minute
   const rateLbl = d => d.kind === 'invest' || d.kind === 'useless' ? `−${nf2(d.rate)}/min`
     : d.kind === 'care' ? (d.mode === 'tap' ? `+${nf(careRate(d))} Tons each` : `+${perSec(careRate(d))} Tons/sec`) : 'no Tons';
-  const isAdjust = e => String(e.deedId).startsWith('adjust:');   // fresh-start corrections: count toward the balance, never toward earned/spent
+  const isAdjust = e => String(e.deedId).startsWith('adjust:') || !!e.div;   // fresh-start corrections and (gem) dividends: never counted as Tons earned/spent   // fresh-start corrections: count toward the balance, never toward earned/spent
   const dayRange = off => [dayStart(off), off === 0 ? nextMidnight() : dayStart(off - 1)];
 
   // ---------- Health ----------
@@ -249,9 +259,15 @@
   };
   // Dividends build up as "accrued"; only what you've collected counts toward the balance (or everything, with auto-pay on)
   const divAccrued = () => S.entries.reduce((a, e) => a + (e.div ? e.ticks : 0), 0);
-  const divCollected = () => Math.min(S.divCollected || 0, divAccrued());
-  const divPending = () => Math.max(0, divAccrued() - divCollected());
-  const ticksSaved = () => S.gift + S.entries.reduce((a, e) => a + (e.div ? 0 : e.ticks), 0) + divCollected();   // without the running deed
+  // GEMS: investment dividends are paid in whole gems (Tons-equivalent dividend × 5). They build up and you collect them when you like.
+  const gemsAccrued = () => Math.floor(Math.max(0, divAccrued() - (S.divLegacy || 0)) * GEM_PER_DIV + 1e-9);
+  const gemsEarned = () => Math.min(S.gemsCollected || 0, gemsAccrued());
+  const gemsPending = () => Math.max(0, gemsAccrued() - gemsEarned());
+  const gemsSpent = () => S.bought.reduce((a, b) => a + (b.cur === 'gem' ? b.cost : 0), 0);
+  const gems = () => Math.max(0, gemsEarned() - gemsSpent());
+  const gemFrac = () => Math.max(0, Math.min(0.999, Math.max(0, divAccrued() - (S.divLegacy || 0)) * GEM_PER_DIV - gemsAccrued()));   // progress toward the next gem
+  const gemsPerDay = d => dividendPerDay(d) * GEM_PER_DIV;
+  const ticksSaved = () => S.gift + S.entries.reduce((a, e) => a + (e.div ? 0 : e.ticks), 0) + Math.min(S.divLegacy || 0, divAccrued());   // without the running deed (Tons from old-style dividends stay in)
   const balance = () => ticksSaved() + activeTicks(0, Infinity);                   // can be negative = debt
   // average Tons earned per day (health income + dividends) over the days you've used the app — for "about N days" estimates
   const avgDailyIncome = () => {
@@ -281,19 +297,19 @@
       deeds.forEach(d => { const amt = skillHours(d.id, mid) * d.rate * DIV_PER_RATE * days; if (amt > 1e-6) { addDividend(d.id, mid, amt); added = true; } });
       from = to;
     }
-    if (S.divAuto) S.divCollected = divAccrued();
+    if (S.divAuto) S.gemsCollected = gemsAccrued();
     S.divAt = now; save(!added);
   }
   function collectDividends() {
-    const amt = divPending(); if (amt < 0.005) { flash('Nothing to collect yet'); return; }
-    S.divCollected = divAccrued(); save(); render(); confetti(); chime(); flash(`+${t1(amt)} Tons collected 💰`);
+    const n = gemsPending(); if (n < 1) { flash('No whole gem yet — it keeps building'); return; }
+    S.gemsCollected = gemsAccrued(); save(); render(); confetti(); chime(); flash(`+${gemN(n)} gem${n === 1 ? '' : 's'} collected`);
   }
   function investStats(d) {
     let hours = 0, spent = 0, returned = 0;
     S.entries.forEach(e => { if (e.deedId !== d.id) return; hours += e.secs / 3600; if (e.ticks < 0) spent -= e.ticks; else if (e.div) returned += e.ticks; });
     S.actives.filter(a => a.deedId === d.id).forEach(a => { const el = elapsedOf(a); hours += el / 3600; spent += d.rate * el / 60; });
     const perDay = dividendPerDay(d), net = returned - spent;
-    return { hours, spent, returned, perDay, skill: skillHours(d.id, Date.now()), net, roi: spent > 0 ? net / spent : 0, days: net >= 0 ? 0 : perDay > 0.01 ? Math.ceil(-net / perDay) : Infinity };
+    return { hours, spent, returned, gemsEarned: Math.floor(returned * GEM_PER_DIV + 1e-9), gemsDay: perDay * GEM_PER_DIV, perDay, skill: skillHours(d.id, Date.now()), net, roi: spent > 0 ? net / spent : 0, days: net >= 0 ? 0 : perDay > 0.01 ? Math.ceil(-net / perDay) : Infinity };
   }
 
   // record a finished session, splitting at midnights
@@ -405,20 +421,20 @@
     confetti(); chime();
   }
   function investSummary(d, secs, cost, divBefore, divAfter) {
-    const st = investStats(d), gain = divAfter - divBefore;
+    const st = investStats(d), gain = (divAfter - divBefore) * GEM_PER_DIV;
     miniSummary({
       emoji: '🚀', heading: 'Session done', sub: `<b>${esc(d.name)}</b> · total ${nf(Math.round(st.hours * 10) / 10)}h invested`,
-      stats: `<div class="stats">${statBox(dur(secs), 'time invested')}${statBox(tk + '−' + t1(cost), 'Tons spent')}${statBox('+' + (secs / 3600).toFixed(1) + 'h', 'skill added')}${statBox(tk + '+' + t1(gain), 'dividend / day')}</div>`,
-      foot: st.net >= 0 ? 'This investment is in profit ✓' : `Break-even: ${fmtDays(st.days)}`,
+      stats: `<div class="stats">${statBox(dur(secs), 'time invested')}${statBox(tk + '−' + t1(cost), 'Tons spent')}${statBox('+' + (secs / 3600).toFixed(1) + 'h', 'skill added')}${statBox(gm + '+' + gemRate(gain), 'gems / day more')}</div>`,
+      foot: `Now paying about ${gm} ${gemRate(st.gemsDay)} a day · ${gemN(st.gemsEarned)} earned so far`,
     });
   }
   function rewardSummary(b, g, left) {
-    const took = g && g.created ? Math.max(1, Math.round((b.ts - g.created) / 86400000)) : 0;
+    const took = g && g.created ? Math.max(1, Math.round((b.ts - g.created) / 86400000)) : 0, u = b.cur === 'gem' ? gm : tk, un = b.cur === 'gem' ? 'gems' : 'Tons';
     noteSheet({
       heading: 'Enjoy it 🎉', sub: `<b>${esc(b.name)}</b>`,
-      stats: `<div class="stats">${statBox(tk + '−' + num(b.cost), 'Tons spent')}${statBox(tk + t1(left), 'Tons left')}${took ? statBox(took + (took === 1 ? ' day' : ' days'), 'to earn it') : ''}</div>`,
+      stats: `<div class="stats">${statBox(u + '−' + num(b.cost), un + ' spent')}${statBox(u + (b.cur === 'gem' ? gemN(left) : t1(left)), un + ' left')}${took ? statBox(took + (took === 1 ? ' day' : ' days'), 'to earn it') : ''}</div>`,
       noteLabel: 'How was it? Was it worth it?', placeholder: 'What did you do with it? Would you buy it again?', ratingLabel: 'Worth it?',
-      onSave: (text, rating) => { addNote({ kind: 'reward', refId: b.id, title: b.name, line: `−${num(b.cost)} Tons${took ? ` · took ${took} day${took === 1 ? '' : 's'}` : ''}`, text, rating }); flash('Saved to your Journal'); render(); },
+      onSave: (text, rating) => { addNote({ kind: 'reward', refId: b.id, title: b.name, line: `−${num(b.cost)} ${un}${took ? ` · took ${took} day${took === 1 ? '' : 's'}` : ''}`, text, rating }); flash('Saved to your Journal'); render(); },
     });
   }
   function freeNoteSheet(kind, ref, title) {
@@ -457,13 +473,12 @@
 
   function buyGoal(id, el) {
     const g = S.goals.find(x => x.id === id); if (!g) return;
-    if (balance() < g.target) { flash(`You need ${t1(g.target - balance())} more Tons`); return; }
+    if (gems() < g.target) { const n = g.target - gems(); flash(`You need ${gemN(n)} more gem${n === 1 ? '' : 's'}`); return; }
     const rid = `reward:${uid()}`, ts = Date.now();
-    const rec = { id: rid, name: g.name, cost: g.target, ts }; S.bought.unshift(rec);
-    S.entries.push({ id: uid(), deedId: rid, ts, secs: 0, ticks: -g.target });
+    const rec = { id: rid, name: g.name, cost: g.target, cur: 'gem', ts }; S.bought.unshift(rec);
     S.goals = S.goals.filter(x => x.id !== id); gone(id);
     save(); render(); confetti(el); chime();
-    rewardSummary(rec, g, balance());
+    rewardSummary(rec, g, gems());
   }
 
   // ---------- ui state ----------
@@ -490,7 +505,7 @@
       <div class="sub" style="margin-top:8px"><b>Health</b> is your income: sleep, food, move, hygiene, home, family and Allah (faith). Look after them and you <b>earn Tons</b>.</div>
       <div class="sub" style="margin-top:8px"><b>Looking after yourself:</b> each of those pillars slowly drains through the day, and care deeds refill it and pay you Tons — a timer pays <b>Tons per second</b> while it runs, a check-in pays a lump sum. A pillar can only pay so much at a time — every care deed shows how many Tons are <b>left</b> to earn from it, and a full pillar stops paying. If your overall Health gets too low (below 40%) you can't start an investment.</div>
       <div class="sub" style="margin-top:8px"><b>Combine deeds:</b> you can run up to <b>3 at once</b> — each earns or costs Tons at its own rate, so cleaning while you learn works.</div>
-      <div class="sub" style="margin-top:8px"><b>Investments</b> (learning, projects) cost Tons now and <b>pay daily dividends</b> later. <b>Useless</b> deeds just cost — and cost 50% more if you're in debt.</div>
+      <div class="sub" style="margin-top:8px"><b>Investments</b> (learning, projects) cost Tons now and <b>pay you gems</b> every day later. <b>Gems</b> are whole numbers you can count — spend them on your goals. <b>Useless</b> deeds just cost — and cost 50% more if you're in debt.</div>
       ${coinList()}
       <div class="sub" style="margin-top:12px"><b>Appearance</b></div>
       <div class="seg" id="theme">${[['auto', 'Auto'], ['light', 'Light'], ['dark', 'Dark']].map(([k, l]) => `<button type="button" data-t="${k}" class="${getTheme() === k ? 'on' : ''}">${l}</button>`).join('')}</div>
@@ -520,7 +535,7 @@
     const ID = x => T(x) && /^[\w:.\-]{1,80}$/.test(x), TXT = (x, n) => (T(x) ? x.slice(0, n) : '');
     const KINDS = ['care', 'invest', 'useless', 'neutral', 'hard'];
     const out = { onboarded: !!d.onboarded };
-    ['created', 'gift', 'divAt', 'divCollected'].forEach(k => { if (N(d[k])) out[k] = d[k]; });
+    ['created', 'gift', 'divAt', 'divCollected', 'divLegacy', 'gemsCollected', 'gemsV'].forEach(k => { if (N(d[k])) out[k] = d[k]; });
     if (typeof d.divAuto === 'boolean') out.divAuto = d.divAuto;
     out.deeds = A(d.deeds).filter(x => x && ID(x.id) && T(x.name) && KINDS.includes(x.kind) &&
       (x.kind === 'care' ? Object.prototype.hasOwnProperty.call(PILLARS, x.pillar) && ['timer', 'tap'].includes(x.mode) && N(x.pts) && x.pts > 0 : x.kind === 'neutral' || N(x.rate)))
@@ -533,7 +548,7 @@
         title: TXT(n.title, 80), line: TXT(n.line, 160), text: TXT(n.text, 600), rating: Number.isInteger(n.rating) && n.rating >= 1 && n.rating <= 5 ? n.rating : 0, ...(N(n.edited) ? { edited: n.edited } : {}) }));
     out.goals = A(d.goals).filter(g => g && ID(g.id) && T(g.name) && N(g.target) && g.target > 0)
       .map(g => ({ id: g.id, name: TXT(g.name, 40), target: g.target, ...(N(g.created) ? { created: g.created } : {}), ...(N(g.mod) ? { mod: g.mod } : {}) }));
-    out.bought = A(d.bought).filter(b => b && ID(b.id) && T(b.name) && N(b.cost) && N(b.ts)).map(b => ({ id: b.id, name: TXT(b.name, 40), cost: b.cost, ts: b.ts }));
+    out.bought = A(d.bought).filter(b => b && ID(b.id) && T(b.name) && N(b.cost) && N(b.ts)).map(b => ({ id: b.id, name: TXT(b.name, 40), cost: b.cost, ts: b.ts, ...(b.cur === 'gem' ? { cur: 'gem' } : {}) }));
     out.tomb = A(d.tomb).filter(ID);
     if (d.balanceV === 2) out.balanceV = 2;
     out.chat = A(d.chat).filter(c => c && (c.from === 'me' || c.from === 'bot') && T(c.text)).map(c => ({ from: c.from, text: TXT(c.text, 600) })).slice(-40);
@@ -707,26 +722,28 @@
   };
   // what your investments will pay: dividends accrue continuously and land in your balance through the day
   function incomingHTML() {
-    const [d0, d1] = dayRange(0), invs = S.deeds.filter(d => d.kind === 'invest').map(d => ({ d, perDay: dividendPerDay(d) })).filter(x => x.perDay > 0.005).sort((a, b) => b.perDay - a.perDay);
-    if (!invs.length) return `<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><b>Incoming dividends</b><div class="sub" style="margin:2px 0 0">Invest time in something and it pays you Tons every day.</div></div><button class="pbtn" data-pick="invest">Invest</button></div></div>`;
-    const perDay = invs.reduce((a, x) => a + x.perDay, 0), pend = divPending();
+    const invs = S.deeds.filter(d => d.kind === 'invest').map(d => ({ d, perDay: gemsPerDay(d) })).filter(x => x.perDay > 0.02).sort((a, b) => b.perDay - a.perDay);
+    if (!invs.length) return `<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><b>Gems</b><div class="sub" style="margin:2px 0 0">Invest time in something and it pays you gems every day.</div></div><button class="pbtn" data-pick="invest">Invest</button></div></div>`;
+    const perDay = invs.reduce((a, x) => a + x.perDay, 0), pend = gemsPending();
     return `<div class="card">
-      <div class="sechead" style="margin:0 0 8px"><b>Incoming dividends</b><button class="link" data-tab="invest">Invest ›</button></div>
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><span class="mid" style="font-size:26px">${S.divAuto ? '' : '+'}${tk}${t1(S.divAuto ? perDay : pend)}<small>${S.divAuto ? ' / day' : ''}</small></span><div class="sub" style="margin:0">${S.divAuto ? 'Paid straight into your balance' : 'waiting for you · building up ≈ +' + t1(perDay) + ' / day'}</div></div>
-        ${S.divAuto ? '' : `<button class="pbtn" data-act="collect" ${pend < 0.005 ? 'disabled style="opacity:.4"' : ''}>Collect</button>`}</div>
-      ${invs.slice(0, 3).map(x => `<div class="row" style="padding:8px 0 0"><i class="dot" style="background:${x.d.color}"></i><div class="t"><b>${esc(x.d.name)}</b></div><div class="r"><b>+${t1(x.perDay)}/day</b></div></div>`).join('')}
+      <div class="sechead" style="margin:0 0 8px"><b>Incoming gems</b><button class="link" data-tab="invest">Invest ›</button></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><span class="mid" style="font-size:26px">${S.divAuto ? '' : '+'}${gm} ${S.divAuto ? gemRate(perDay) : gemN(pend)}<small>${S.divAuto ? ' / day' : ''}</small></span><div class="sub" style="margin:0">${S.divAuto ? 'Paid straight into your gems' : 'ready to collect · building ≈ ' + gemRate(perDay) + ' / day'}</div></div>
+        ${S.divAuto ? '' : `<button class="pbtn" data-act="collect" ${pend < 1 ? 'disabled style="opacity:.4"' : ''}>Collect</button>`}</div>
+      ${S.divAuto ? '' : `<div class="bar"><i style="width:${Math.round(gemFrac() * 100)}%"></i></div><div class="sub" style="margin-top:6px">Next gem is ${Math.round(gemFrac() * 100)}% there.</div>`}
+      ${invs.slice(0, 3).map(x => `<div class="row" style="padding:8px 0 0"><i class="dot" style="background:${x.d.color}"></i><div class="t"><b>${esc(x.d.name)}</b></div><div class="r"><b>+${gemRate(x.perDay)}/day</b></div></div>`).join('')}
     </div>`;
   }
   // the goal you're closest to — with the Buy button right here
   function nextGoalHTML() {
     if (!S.goals.length) return '';
-    const bal = balance(), g = [...S.goals].sort((a, b) => (a.target - bal) - (b.target - bal))[0], need = g.target - bal, can = need <= 0, inc = avgDailyIncome();
+    const have = gems(), g = [...S.goals].sort((a, b) => (a.target - have) - (b.target - have))[0], need = g.target - have, can = need <= 0;
+    const inc = S.deeds.filter(d => d.kind === 'invest').reduce((a, d) => a + gemsPerDay(d), 0);
     return `<div class="card">
       <div class="sechead" style="margin:0 0 8px"><b>Next reward</b><button class="link" data-tab="goals">All goals ›</button></div>
-      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px"><b style="font-size:17px">${esc(g.name)}</b><span class="sub" style="margin:0">${tk}${num(Math.max(0, Math.min(bal, g.target)))} of ${tk}${num(g.target)}</span></div>
-      <div class="bar"><i style="width:${Math.max(0, Math.min(100, (bal / g.target) * 100))}%"></i></div>
-      <div class="sub" style="margin-top:6px">${can ? 'You can afford it 🎉' : `${num(need)} to go · about ${Math.max(1, Math.ceil(need / inc))} day${Math.ceil(need / inc) <= 1 ? '' : 's'} at your pace`}</div>
-      ${can ? `<button class="btn" data-buy="${g.id}" style="margin-top:10px">Buy it · ${num(g.target)} Tons</button>` : ''}
+      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px"><b style="font-size:17px">${esc(g.name)}</b><span class="sub" style="margin:0">${gm} ${gemN(Math.min(have, g.target))} of ${gemN(g.target)}</span></div>
+      <div class="bar"><i style="width:${Math.max(0, Math.min(100, (have / g.target) * 100))}%"></i></div>
+      <div class="sub" style="margin-top:6px">${can ? 'You can afford it 🎉' : `${gemN(need)} gem${need === 1 ? '' : 's'} to go${inc > 0.05 ? ` · about ${Math.max(1, Math.ceil(need / inc))} day${Math.ceil(need / inc) <= 1 ? '' : 's'} at your pace` : ' · invest to earn gems'}`}</div>
+      ${can ? `<button class="btn" data-buy="${g.id}" style="margin-top:10px">Buy it · ${gm} ${gemN(g.target)}</button>` : ''}
     </div>`;
   }
   function viewWallet() {
@@ -737,6 +754,7 @@
       <div class="card hero ${debt ? 'debt' : ''}" id="balhero">
         <div class="lbl" id="ballbl">${debt ? 'In debt · useless time costs +50%' : 'Total balance'}</div>
         <div class="big live" id="bal">${tk}${tBig(bal)}</div>
+        <div class="gemline"><span>${gm} <b id="gems">${gemN(gems())}</b> gems</span>${gemsPending() >= 1 ? `<button class="chip" data-act="collect" style="margin:0">+${gemN(gemsPending())} ready</button>` : ''}</div>
         <div class="hrow"><span>Time left today</span><b class="live" id="hms">${hms(dayRemaining())}</b></div>
         <div class="bar"><i id="bar" style="width:${((DAY - dayRemaining()) / DAY) * 100}%"></i></div>
       </div>
@@ -769,7 +787,7 @@
     };
     return `
       ${head('Deeds', '<button class="icon-btn" data-act="adddeed" aria-label="Add deed">+</button>')}
-      ${grp('care', 'Care · refill your Health, earn Tons')}${grp('invest', 'Investments · cost Tons, pay dividends')}${grp('useless', 'Useless · cost Tons')}${grp('neutral', 'Just living')}
+      ${grp('care', 'Care · refill your Health, earn Tons')}${grp('invest', 'Investments · cost Tons, pay gems')}${grp('useless', 'Useless · cost Tons')}${grp('neutral', 'Just living')}
       <button class="btn lime" data-act="logpast" style="border:1.5px solid var(--ink)">+ Log time I already spent</button>`;
   }
 
@@ -796,7 +814,7 @@
       const d = named || { kind: 'useless', rate: 1, name: 'useless time' }, m = secs / 60, pct = (secs / DAY * 100).toFixed(1);
       if (d.kind === 'invest') {
         const cost = d.rate * m, perDay = (secs / 3600) * d.rate * DIV_PER_RATE, back = perDay > 0 ? Math.ceil(cost / perDay) : 0;
-        return `${dur(secs)} of ${d.name} costs ${t1(cost)} Tons (${nf2(d.rate)}/min).\nIt adds about ${t1(perDay)} Tons a day in dividends, fading 2% a day if you stop practising.\nBreak-even in roughly ${back} days.` + (gated() ? '\nBut Health is too low to start it right now.' : '');
+        return `${dur(secs)} of ${d.name} costs ${t1(cost)} Tons (${nf2(d.rate)}/min).\nIt pays about ${gemRate(perDay * GEM_PER_DIV)} gems a day, fading 2% a day if you stop practising.\nThat is roughly ${gemRate(cost / Math.max(0.01, perDay * GEM_PER_DIV))} Tons per gem.` + (gated() ? '\nBut Health is too low to start it right now.' : '');
       }
       if (d.kind === 'care') return d.mode === 'tap' ? `${d.name} is a quick check-in worth up to +${nf(careRate(d))} Tons.` : `${dur(secs)} of ${d.name} earns up to +${t1(careRate(d) * m)} Tons (${perSec(careRate(d))} Tons/sec) — but ${PILLARS[d.pillar].name} can only pay ${t1(roomTons(d.pillar))} more right now.`;
       if (d.kind === 'useless') {
@@ -806,15 +824,15 @@
       }
       return `${dur(secs)} of ${d.name} costs no Tons, but uses ${pct}% of today's time.`;
     }
-    if (/\btons?\b|gem|tick|balance|wallet|have|afford|debt/.test(l)) return bal < 0 ? `You are ${t1(-bal)} Tons in debt. Look after yourself to earn your way back above zero.` : `You have ${t1(bal)} Tons. Caring for yourself earns more, and investments pay dividends.`;
+    if (/\btons?\b|gem|tick|balance|wallet|have|afford|debt/.test(l)) return bal < 0 ? `You are ${t1(-bal)} Tons in debt. Look after yourself to earn your way back above zero.` : `You have ${t1(bal)} Tons. Caring for yourself earns more. You also have ${gemN(gems())} gems from investing.`;
     if (/left|time/.test(l)) return `You have ${hms(dayRemaining())} of today left. It expires at midnight.`;
     if (/earn|spen[dt]|top|most|where/.test(l)) { const { earned, spent } = dayEarnSpend(0); return `Today: +${t1(earned)} earned, −${t1(spent)} spent. Net ${signed(earned - spent)} Tons.`; }
     return 'Try “2h scrolling”, “2h learn to code”, “100 tons”, “how is my health?” or “how many Tons do I have?”';
   }
-  const roiChip = x => x.spent >= 1 ? `<span class="pc ${x.roi >= 0 ? 'up' : 'dn'}">${x.roi >= 0 ? '▲' : '▼'} ${Math.abs(Math.round(x.roi * 100))}%</span>` : '<span class="pc">new</span>';
+  const roiChip = x => `<span class="pc ${x.gemsEarned > 0 ? 'up' : ''}">${gm} ${gemN(x.gemsEarned)} earned</span>`;
   // dividends paid per day for the last 14 days → a small stock-style area chart
   function divChart() {
-    const vals = Array.from({ length: 14 }, (_, k) => { const [d0, d1] = dayRange(13 - k); return S.entries.reduce((a, e) => a + (e.div && e.ts >= d0 && e.ts < d1 ? e.ticks : 0), 0); });
+    const vals = Array.from({ length: 14 }, (_, k) => { const [d0, d1] = dayRange(13 - k); return S.entries.reduce((a, e) => a + (e.div && e.ts >= d0 && e.ts < d1 ? e.ticks * GEM_PER_DIV : 0), 0); });
     const W = 320, H = 70, mx = Math.max(0.01, ...vals), pts = vals.map((v, k) => [k * W / 13, H - 6 - (v / mx) * (H - 16)]);
     const line = pts.map((q, k) => (k ? 'L' : 'M') + q[0].toFixed(1) + ' ' + q[1].toFixed(1)).join(' ');
     return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true"><defs><linearGradient id="sg" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#16210F" stop-opacity=".28"/><stop offset="1" stop-color="#16210F" stop-opacity="0"/></linearGradient></defs><path d="${line} L${W} ${H} L0 ${H} Z" fill="url(#sg)"/><path d="${line}" fill="none" stroke="#16210F" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/><circle cx="${pts[13][0]}" cy="${pts[13][1].toFixed(1)}" r="4" fill="#16210F"/></svg>`;
@@ -823,35 +841,36 @@
     const d = deedOf(id), x = { d, ...investStats(d) }; if (d.kind !== 'invest') return;
     const n = S.notes.find(q => q.deedId === id), cnt = S.notes.filter(q => q.deedId === id).length, dis = S.actives.length >= MAX_ACTIVE || isActive(id) || gated();
     openSheet(`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><div><h3 style="margin:0">${esc(d.name)}</h3><div class="sub" style="margin:2px 0 0">costs ${nf2(d.rate)} Tons/min · ${roiChip(x)}</div></div><div style="display:flex;gap:8px"><button class="x edit" data-edit="${id}" aria-label="Edit">✎</button><button id="x" aria-label="Close" style="width:38px;height:38px;border-radius:50%;border:1.5px solid var(--ink);background:none;color:var(--ink);font-size:22px;line-height:1;cursor:pointer">×</button></div></div>
-      <div class="stats">${statBox(tk + t1(x.perDay), 'dividend / day')}${statBox(nf(Math.round(x.hours * 10) / 10) + 'h', 'time invested')}${statBox(tk + num(x.spent), 'invested')}${statBox(tk + num(x.returned), 'paid back')}${statBox(x.skill.toFixed(1) + 'h', 'skill now')}${statBox(x.spent < 1 ? '—' : x.net >= 0 ? 'In profit' : fmtDays(x.days), 'break-even')}</div>
+      <div class="stats">${statBox(gm + ' ' + gemRate(x.gemsDay), 'gems / day')}${statBox(nf(Math.round(x.hours * 10) / 10) + 'h', 'time invested')}${statBox(tk + num(x.spent), 'Tons invested')}${statBox(gm + ' ' + gemN(x.gemsEarned), 'gems earned')}${statBox(x.skill.toFixed(1) + 'h', 'skill now')}${statBox(x.gemsEarned > 0 ? tk + t1(x.spent / x.gemsEarned) : '—', 'Tons per gem so far')}</div>
       ${n ? `<div class="sub" style="margin-top:12px;font-style:italic">“${esc(n.text || 'Rated ' + n.rating + '/5')}” <span style="font-size:12px">· ${cnt} note${cnt === 1 ? '' : 's'}</span></div>` : ''}
       <div style="display:flex;gap:10px;margin-top:14px"><button class="btn" style="margin:0;flex:1" data-start="${id}" ${dis ? 'disabled' : ''}>${isActive(id) ? 'Running…' : gated() ? 'Health too low' : S.actives.length >= MAX_ACTIVE ? '3 running' : 'Invest now'}</button><button class="chip" style="margin:0;align-self:center" data-add-note="${id}">+ note</button></div>`, w => { $('#x', w).onclick = closeSheet; });
   }
   function viewInvest() {
-    const invs = S.deeds.filter(d => d.kind === 'invest'), st = invs.map(d => ({ d, ...investStats(d) })).sort((a, b) => b.perDay - a.perDay);
-    const perDay = st.reduce((a, x) => a + x.perDay, 0), spent = st.reduce((a, x) => a + x.spent, 0), returned = st.reduce((a, x) => a + x.returned, 0);
-    const tot = spent >= 1 ? (returned - spent) / spent : null;
+    const invs = S.deeds.filter(d => d.kind === 'invest'), st = invs.map(d => ({ d, ...investStats(d) })).sort((a, b) => b.gemsDay - a.gemsDay);
+    const perDay = st.reduce((a, x) => a + x.gemsDay, 0), spent = st.reduce((a, x) => a + x.spent, 0), earnedG = st.reduce((a, x) => a + x.gemsEarned, 0);
+    const pend = gemsPending();
     const chips = ['2h learn to code', '1h deep work', '100 tons', 'how is my health?'];
     return `
       ${head('Invest', '<button class="icon-btn" data-act="addinvest" aria-label="Add investment">+</button>')}
       <div class="card hero">
-        <div class="lbl">Daily dividends</div>
-        <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap"><div class="big live" id="divs">${tk}${tBig(perDay)}</div><span class="pc big-pc ${tot === null ? '' : tot >= 0 ? 'up' : 'dn'}">${tot === null ? 'getting started' : (tot >= 0 ? '▲ ' : '▼ ') + Math.abs(Math.round(tot * 100)) + '% overall'}</span></div>
+        <div class="lbl">Gems per day</div>
+        <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap"><div class="big live" id="divs">${gm} ${gemRate(perDay)}</div><span class="pc big-pc">${gm} ${gemN(gems())} in your pocket</span></div>
         ${divChart()}
-        <div class="hrow"><span>Last 14 days</span><span>per day · fades 2% without practice</span></div>
+        <div class="hrow"><span>Last 14 days</span><span>gems earned per day · fades 2% without practice</span></div>
       </div>
-      <div class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><div class="sub" style="margin:0">${S.divAuto ? 'Auto-pay is on' : 'Ready to collect'}</div><div class="mid" style="font-size:26px">${S.divAuto ? 'Paid as it builds' : '+' + tk + t1(divPending())}</div></div>${S.divAuto ? '' : `<button class="pbtn" data-act="collect" ${divPending() < 0.005 ? 'disabled style="opacity:.4"' : ''}>Collect</button>`}</div>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;gap:10px"><span class="sub" style="margin:0">${S.divAuto ? 'Dividends go straight into your balance.' : 'Dividends build up until you collect them.'}</span><button class="chip" style="margin:0" data-act="autopay">Auto-pay: ${S.divAuto ? 'on' : 'off'}</button></div></div>
+      <div class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><div class="sub" style="margin:0">${S.divAuto ? 'Auto-pay is on' : 'Ready to collect'}</div><div class="mid" style="font-size:26px">${S.divAuto ? 'Paid as it builds' : '+' + gm + ' ' + gemN(pend)}</div></div>${S.divAuto ? '' : `<button class="pbtn" data-act="collect" ${pend < 1 ? 'disabled style="opacity:.4"' : ''}>Collect</button>`}</div>
+        ${S.divAuto ? '' : `<div class="bar"><i style="width:${Math.round(gemFrac() * 100)}%"></i></div><div class="sub" style="margin-top:6px">Next gem is ${Math.round(gemFrac() * 100)}% there.</div>`}
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;gap:10px"><span class="sub" style="margin:0">${S.divAuto ? 'Gems go straight into your pocket.' : 'Gems build up until you collect them.'}</span><button class="chip" style="margin:0" data-act="autopay">Auto-pay: ${S.divAuto ? 'on' : 'off'}</button></div></div>
       <div class="grid2">
-        <div class="card"><div class="sub" style="margin:0">Invested</div><div class="mid" style="font-size:26px">${tk}${num(spent)}</div></div>
-        <div class="card"><div class="sub" style="margin:0">Paid back</div><div class="mid" style="font-size:26px">${tk}${num(returned)}</div></div>
+        <div class="card"><div class="sub" style="margin:0">Tons invested</div><div class="mid" style="font-size:26px">${tk}${num(spent)}</div></div>
+        <div class="card"><div class="sub" style="margin:0">Gems earned</div><div class="mid" style="font-size:26px">${gm} ${gemN(earnedG)}</div></div>
       </div>
       ${S.actives.filter(a => deedOf(a.deedId).kind === 'invest').map(a => { const d = deedOf(a.deedId); return `<div class="card run"><div class="rhead"><div class="sub"><span class="pulse"></span>Investing in <b>${esc(d.name)}</b></div><button class="pbtn" data-stop="${a.id}">Stop</button></div>${stageHTML(a)}</div>`; }).join('')}
       <div class="sechead"><b>Your investments</b><button class="link" data-act="addinvest">+ Add</button></div>
       <div class="card txl">${st.length ? st.map(x => `
         <div class="tx hold" data-hold="${x.d.id}" role="button" tabindex="0"><span class="txi" style="background:${x.d.color};border-color:transparent;color:#16210F;font-weight:800">${esc(x.d.name.trim().charAt(0).toUpperCase())}</span>
-          <span class="txm"><b>${esc(x.d.name)}</b><span class="sub">${nf(Math.round(x.hours * 10) / 10)}h · skill ${x.skill.toFixed(1)}h · −${nf2(x.d.rate)}/min</span></span>
-          <span class="holdr"><b>${tk}${t1(x.perDay)}<small>/day</small></b>${roiChip(x)}</span>
+          <span class="txm"><b>${esc(x.d.name)}</b><span class="sub">${nf(Math.round(x.hours * 10) / 10)}h · skill ${x.skill.toFixed(1)}h · −${nf2(x.d.rate)} Tons/min</span></span>
+          <span class="holdr"><b>${gm} ${gemRate(x.gemsDay)}<small>/day</small></b>${roiChip(x)}</span>
           <button class="play" data-start="${x.d.id}" aria-label="Invest now" ${(S.actives.length >= MAX_ACTIVE || isActive(x.d.id) || gated()) ? 'disabled' : ''}>${isActive(x.d.id) ? '●' : '▶'}</button></div>`).join('') : '<div class="empty">No investments yet.<br>Tap + to add one, like “Learn to code”.</div>'}</div>
       <div class="sechead"><b>What if…?</b></div>
       <div class="card">
@@ -863,22 +882,23 @@
   }
 
   function viewGoals() {
-    const bal = Math.max(0, balance()), inc = avgDailyIncome();
+    const have = gems(), inc = S.deeds.filter(d => d.kind === 'invest').reduce((a, d) => a + gemsPerDay(d), 0);
     return `
       ${head('Goals', '<button class="icon-btn" data-act="addgoal" aria-label="Add goal">+</button>')}
-      <div class="sub" style="margin:-4px 0 12px">Rewards you're earning Tons for. Reach the target, then buy it.</div>
+      <div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><div class="sub" style="margin:0">Your gems</div><div class="mid" style="font-size:30px">${gm} ${gemN(have)}</div></div>${gemsPending() >= 1 ? `<button class="pbtn" data-act="collect">Collect +${gemN(gemsPending())}</button>` : ''}</div>
+      <div class="sub" style="margin:-4px 0 12px">Rewards you buy with gems. Investments pay the gems.</div>
       ${S.goals.length ? S.goals.map((g, i) => {
-        const pct = Math.min(100, (bal / g.target) * 100), cls = ['peach', 'mint', 'sky'][i % 3], need = g.target - balance(), can = need <= 0;
+        const pct = Math.min(100, (have / g.target) * 100), cls = ['peach', 'mint', 'sky'][i % 3], need = g.target - have, can = need <= 0;
         return `<div class="card ${cls}">
           <div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><button class="gname mid" data-edit-goal="${g.id}" aria-label="Edit ${esc(g.name)}">${esc(g.name)}</button><button class="x edit" data-edit-goal="${g.id}" aria-label="Edit ${esc(g.name)}">✎</button></div>
-          <div class="big">${tk}${num(Math.min(bal, g.target))}</div>
-          <div class="sub">of ${tk}${num(g.target)} · ${can ? 'You can afford it 🎉' : `${num(need)} to go ≈ ${Math.max(1, Math.ceil(need / inc))} day${Math.ceil(need / inc) <= 1 ? '' : 's'} at your pace`}</div>
+          <div class="big">${gm} ${gemN(Math.min(have, g.target))}</div>
+          <div class="sub">of ${gm} ${gemN(g.target)} · ${can ? 'You can afford it 🎉' : `${gemN(need)} gem${need === 1 ? '' : 's'} to go${inc > 0.05 ? ` ≈ ${Math.max(1, Math.ceil(need / inc))} day${Math.ceil(need / inc) <= 1 ? '' : 's'} at your pace` : ' — invest to earn gems'}`}</div>
           <div class="bar"><i style="width:${pct}%"></i></div>
-          <button class="btn" data-buy="${g.id}" ${can ? '' : 'disabled'}>${can ? `Buy it · ${num(g.target)} Tons` : 'Keep earning'}</button></div>`;
+          <button class="btn" data-buy="${g.id}" ${can ? '' : 'disabled'}>${can ? `Buy it · ${gm} ${gemN(g.target)}` : 'Keep investing'}</button></div>`;
       }).join('') : '<div class="card"><div class="empty">No goals yet.<br>Tap + and name a guilt-free reward, like “Gaming weekend”.</div></div>'}
       ${S.bought.length ? `<h2>Rewards you've bought</h2><div class="card">${S.bought.slice(0, 20).map(b => `
-        ${(() => { const n = S.notes.find(x => x.refId === b.id); return `<div class="row"><div class="t"><b>${esc(b.name)}</b><span>${new Date(b.ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}${n && n.rating ? ' · ' + stars(n.rating) : ''}</span>${n && n.text ? `<div class="jtext sub">${esc(n.text)}</div>` : ''}</div>
-        <div class="r"><b>${tk}−${num(b.cost)}</b></div>${n ? `<button class="x edit" data-edit-note="${n.id}" aria-label="Edit note">✎</button>` : `<button class="chip" style="margin:0" data-add-reward-note="${b.id}">+ note</button>`}</div>`; })()}`).join('')}</div>` : ''}`;
+        ${(() => { const n = S.notes.find(x => x.refId === b.id); return `<div class="row"><div class="t"><b>${esc(b.name)}</b><span>${new Date(b.ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}${n && n.rating ? ' · ' + stars(n.rating) : ''}</span>${n && n.text ? `<div class="jtext" style="font-style:italic;color:var(--muted);font-size:13px">“${esc(n.text)}”</div>` : ''}</div>
+        <div class="r"><b>${b.cur === 'gem' ? gm : tk}−${num(b.cost)}</b></div>${n ? `<button class="x edit" data-edit-note="${n.id}" aria-label="Edit note">✎</button>` : `<button class="chip" style="margin:0" data-add-reward-note="${b.id}">+ note</button>`}</div>`; })()}`).join('')}</div>` : ''}`;
   }
 
   // ---------- History ----------
@@ -971,12 +991,12 @@
     if (drained) { stopSession(drained.id); flash('Health is too low — investing stopped'); return; }
     const bal = balance(), { earned, spent } = dayEarnSpend(0), debt = bal < -0.004, hs = healthScore();
     const set = (id, h) => { const e = $(id); if (e) e.innerHTML = h; };
-    set('#bal', tk + tBig(bal));
+    set('#bal', tk + tBig(bal)); set('#gems', gemN(gems()));
     set('#ballbl', debt ? 'In debt · useless time costs +50%' : 'Total balance');
     const hero = $('#balhero'); if (hero) hero.classList.toggle('debt', debt);
     set('#hscore', `${Math.round(hs)}<small>%</small>`); set('#hsub', healthSub()); set('#pillars', pillarsHTML());
     set('#hms', hms(dayRemaining())); set('#tracked', `${dur(trackedToday())} tracked today · 86,400 seconds a day for everyone · expires at midnight`);
-    if ($('#divs')) set('#divs', tk + tBig(S.deeds.filter(d => d.kind === 'invest').reduce((a, d) => a + dividendPerDay(d), 0)));
+    if ($('#divs')) set('#divs', gm + ' ' + gemRate(S.deeds.filter(d => d.kind === 'invest').reduce((a, d) => a + gemsPerDay(d), 0)));
     const bar = $('#bar'); if (bar) bar.style.width = ((DAY - dayRemaining()) / DAY) * 100 + '%';
     let b = Math.max(0, Math.floor(bal));
     ['hundred', 'ten', 'tick'].forEach(k => { const n = Math.floor(b / COINS[k].value); b -= n * COINS[k].value; const e = $(`[data-coin="${k}"]`); if (e) e.textContent = n; });
@@ -1095,13 +1115,13 @@
   }
   function goalSheet(id) {
     const ed = id ? S.goals.find(g => g.id === id) : null;
-    openSheet(`<h3>${ed ? 'Edit goal' : 'New goal'}</h3><div class="sub">A guilt-free reward to earn Tons for.</div>
+    openSheet(`<h3>${ed ? 'Edit goal' : 'New goal'}</h3><div class="sub">A guilt-free reward to buy with gems.</div>
       <label class="l">Reward</label><input class="field" id="gn" maxlength="30" placeholder="Gaming weekend" value="${ed ? esc(ed.name) : ''}">
-      <label class="l">Tons needed</label><input class="field" id="gt" type="number" inputmode="decimal" min="1" placeholder="600" value="${ed ? ed.target : ''}">
+      <label class="l">Gems needed</label><input class="field" id="gt" type="number" inputmode="numeric" step="1" min="1" placeholder="30" value="${ed ? ed.target : ''}">
       <button class="btn" id="ok">${ed ? 'Save changes' : 'Create goal'}</button>
       ${ed ? '<button class="link" id="del">Delete this goal</button>' : ''}`, w => {
       $('#ok', w).onclick = () => {
-        const name = $('#gn', w).value.trim(), t = parseFloat($('#gt', w).value);
+        const name = $('#gn', w).value.trim(), t = Math.round(parseFloat($('#gt', w).value));
         if (!name) { $('#gn', w).focus(); return; } if (!(t > 0)) { $('#gt', w).focus(); return; }
         if (ed) Object.assign(ed, { name, target: t, mod: Date.now() }); else S.goals.push({ id: uid(), name, target: t, created: Date.now(), mod: Date.now() });
         save(); closeSheet(); render();
@@ -1152,7 +1172,7 @@
       case 'account': accountSheet(); break;
       case 'backup': backupSheet(); break;
       case 'collect': collectDividends(); break;
-      case 'autopay': S.divAuto = !S.divAuto; if (S.divAuto) S.divCollected = divAccrued(); save(); render(); flash(S.divAuto ? 'Auto-pay on — dividends go straight to your balance' : 'Auto-pay off — collect when you want'); break;
+      case 'autopay': S.divAuto = !S.divAuto; if (S.divAuto) S.gemsCollected = gemsAccrued(); save(); render(); flash(S.divAuto ? 'Auto-pay on — gems go straight to your pocket' : 'Auto-pay off — collect when you want'); break;
       case 'ledger': ledgerSheet(); break;
       case 'writenote': writeNoteSheet(); break;
       case 'adddeed': deedSheet(); break;
@@ -1225,6 +1245,7 @@
     out.actives = byId(l.actives, c.actives, a => a).slice(0, MAX_ACTIVE);   // running sessions: unioned by id; a stopped one is in the tombstones
     delete out.active; delete out.lastStopped;
     out.divAt = Math.max(l.divAt || 0, c.divAt || 0) || Date.now();
+    out.gemsCollected = Math.max(l.gemsCollected || 0, c.gemsCollected || 0); out.divLegacy = Math.max(l.divLegacy || 0, c.divLegacy || 0);
     if (typeof l.divCollected === 'number' || typeof c.divCollected === 'number') out.divCollected = Math.max(l.divCollected || 0, c.divCollected || 0);   // collecting can only move forward, so two devices never pay twice
     out.sound = l.sound; out.chat = l.chat || c.chat || [];
     return out;

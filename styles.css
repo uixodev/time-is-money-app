@@ -335,3 +335,9 @@ textarea.field{min-height:96px;resize:vertical;line-height:1.4}
 .seg{display:flex;gap:6px;margin-top:6px}
 .seg button{flex:1;padding:10px 0;border-radius:999px;border:1.5px solid var(--ink);font-weight:700;font-size:14px}
 .seg button.on{background:var(--btn-bg);color:var(--btn-fg);border-color:var(--btn-bg)}
+
+/* v44 gems */
+.gm{display:inline-block;vertical-align:-.1em;width:.8em;height:.8em;margin-right:.1em}
+.gemline{display:flex;justify-content:space-between;align-items:center;margin-top:10px;font-size:17px;font-weight:700}
+.gemline b{font-variant-numeric:tabular-nums}
+.big .gm{width:.62em;height:.62em;vertical-align:-.02em}
