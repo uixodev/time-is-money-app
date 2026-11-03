@@ -125,6 +125,10 @@ Open it from the **History** tab (Backup card), the **sign button**, or the **ac
 - Older (v14) backup files still import.
 - Backup files are treated as **untrusted input**: only known fields with valid types are accepted, ids must be plain tokens, colours must come from the palette and text is length-limited, so a doctored file can't inject code or break the app.
 
+## Install on your phone
+
+Open the live site, then: **iPhone** (Safari) → Share → *Add to Home Screen*. **Android** (Chrome) → ⋮ menu → *Install app* (or *Add to Home screen*). It opens full-screen like an app and works offline (a service worker keeps a copy; it checks for updates whenever you're online).
+
 ## Run
 
 No build step. Open `index.html`, or:
