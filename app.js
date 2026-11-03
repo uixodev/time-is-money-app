@@ -5,7 +5,7 @@
 (() => {
   'use strict';
   const KEY = 'tick.v1';
-  const VERSION = 'v45';   // bump with the ?v= number in index.html so browsers fetch fresh files
+  const VERSION = 'v46';   // bump with the ?v= number in index.html so browsers fetch fresh files
   const DAY = 86400;
   const $ = (s, el = document) => el.querySelector(s);
   // one tonal green family (+ ink) so every deed colour belongs to the brand
@@ -573,7 +573,7 @@
       .map(n => ({ id: n.id, ts: n.ts, kind: ['reward', 'care', 'general'].includes(n.kind) ? n.kind : 'invest', ...(ID(n.deedId) ? { deedId: n.deedId } : {}), ...(ID(n.refId) ? { refId: n.refId } : {}),
         title: TXT(n.title, 80), line: TXT(n.line, 160), text: TXT(n.text, 600), rating: Number.isInteger(n.rating) && n.rating >= 1 && n.rating <= 5 ? n.rating : 0, ...(N(n.edited) ? { edited: n.edited } : {}) }));
     out.goals = A(d.goals).filter(g => g && ID(g.id) && T(g.name) && N(g.target) && g.target > 0)
-      .map(g => ({ id: g.id, name: TXT(g.name, 40), target: g.target, ...(N(g.created) ? { created: g.created } : {}), ...(N(g.mod) ? { mod: g.mod } : {}), ...(T(g.cat) ? { cat: TXT(g.cat, 20) } : {}), ...(typeof g.pin === 'boolean' ? { pin: g.pin } : {}) }));
+      .map(g => ({ id: g.id, name: TXT(g.name, 40), target: g.target, ...(N(g.created) ? { created: g.created } : {}), ...(N(g.mod) ? { mod: g.mod } : {}), ...(T(g.cat) ? { cat: TXT(g.cat, 20) } : {}), ...(IMG_OK(g.img) ? { img: g.img } : {}), ...(typeof g.pin === 'boolean' ? { pin: g.pin } : {}) }));
     out.bought = A(d.bought).filter(b => b && ID(b.id) && T(b.name) && N(b.cost) && N(b.ts)).map(b => ({ id: b.id, name: TXT(b.name, 40), cost: b.cost, ts: b.ts, ...(b.cur === 'gem' ? { cur: 'gem' } : {}), ...(T(b.cat) ? { cat: TXT(b.cat, 20) } : {}) }));
     out.tomb = A(d.tomb).filter(ID);
     if (d.balanceV === 2) out.balanceV = 2;
@@ -765,6 +765,7 @@
     const have = gems(), g = [...sv].sort((a, b) => (a.target - have) - (b.target - have))[0], need = g.target - have, can = need <= 0;
     const inc = S.deeds.filter(d => d.kind === 'invest').reduce((a, d) => a + gemsPerDay(d), 0);
     return `<div class="card">
+      ${IMG_OK(g.img) ? `<div class="cover" style="margin:-4px -4px 10px"><img src="${g.img}" alt=""></div>` : ''}
       <div class="sechead" style="margin:0 0 8px"><b>Saving up for</b><button class="link" data-tab="goals">Shop ›</button></div>
       <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px"><b style="font-size:17px">${esc(g.name)}</b><span class="sub" style="margin:0">${gm} ${gemN(Math.min(have, g.target))} of ${gemN(g.target)}</span></div>
       <div class="bar"><i style="width:${Math.max(0, Math.min(100, (have / g.target) * 100))}%"></i></div>
@@ -913,6 +914,7 @@
     const savingCard = (g, i) => {
       const pct = Math.min(100, (have / g.target) * 100), cls = ['peach', 'mint', 'sky'][i % 3], need = g.target - have, can = need <= 0;
       return `<div class="card ${cls}">
+        ${IMG_OK(g.img) ? `<div class="cover"><img src="${g.img}" alt=""></div>` : ''}
         <div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><button class="gname mid" data-edit-goal="${g.id}" aria-label="Edit ${esc(g.name)}">${esc(g.name)}</button><button class="x edit" data-edit-goal="${g.id}" aria-label="Edit ${esc(g.name)}">✎</button></div>
         <div class="big">${gm} ${gemN(Math.min(have, g.target))}</div>
         <div class="sub">of ${gm} ${gemN(g.target)} · ${can ? 'You can afford it 🎉' : `${gemN(need)} gem${need === 1 ? '' : 's'} to go${inc > 0.05 ? ` ≈ ${Math.max(1, Math.ceil(need / inc))} day${Math.ceil(need / inc) <= 1 ? '' : 's'} at your pace` : ' — invest to earn gems'}`}</div>
@@ -920,7 +922,7 @@
         <button class="btn" data-buy="${g.id}" ${can ? '' : 'disabled'}>${can ? `Buy it · ${gm} ${gemN(g.target)}` : 'Keep investing'}</button></div>`;
     };
     const cats = [...SHOP_CATS, ...new Set(shop.map(g => g.cat).filter(c => c && !SHOP_CATS.includes(c)))].filter(c => shop.some(g => (g.cat || 'Other') === c));
-    const row = g => { const can = have >= g.target; return `<div class="row"><div class="t"><b>${esc(g.name)}</b><span>${gm} ${gemN(g.target)}${can ? '' : ` · ${gemN(g.target - have)} more`}</span></div>
+    const row = g => { const can = have >= g.target; return `<div class="row">${IMG_OK(g.img) ? `<img class="thumb" src="${g.img}" alt="">` : ''}<div class="t"><b>${esc(g.name)}</b><span>${gm} ${gemN(g.target)}${can ? '' : ` · ${gemN(g.target - have)} more`}</span></div>
       <button class="pbtn" data-buy="${g.id}" ${can ? '' : 'disabled style="opacity:.4"'}>Buy</button><button class="x edit" data-edit-goal="${g.id}" aria-label="Edit ${esc(g.name)}">✎</button></div>`; };
     return `
       ${head('Shop', '<button class="icon-btn" data-act="addgoal" aria-label="Add shop item">+</button>')}
@@ -1146,23 +1148,54 @@
       };
     });
   }
+  // a cover picture: downscaled in the browser to a small JPEG so it stays light for storage and sync
+  const IMG_OK = x => typeof x === 'string' && x.length < 220000 && /^data:image\/jpeg;base64,[A-Za-z0-9+\/=]+$/.test(x);
+  function shrinkImage(file, max = 640) {
+    return new Promise((resolve, reject) => {
+      const fr = new FileReader();
+      fr.onerror = () => reject(new Error('read'));
+      fr.onload = () => {
+        const im = new Image();
+        im.onerror = () => reject(new Error('decode'));
+        im.onload = () => {
+          const k = Math.min(1, max / Math.max(im.width, im.height)), w = Math.max(1, Math.round(im.width * k)), h = Math.max(1, Math.round(im.height * k));
+          const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+          const cx = cv.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, w, h); cx.drawImage(im, 0, 0, w, h);
+          let q = 0.75, out = cv.toDataURL('image/jpeg', q);
+          while (out.length > 150000 && q > 0.35) { q -= 0.1; out = cv.toDataURL('image/jpeg', q); }
+          IMG_OK(out) ? resolve(out) : reject(new Error('big'));
+        };
+        im.src = fr.result;
+      };
+      fr.readAsDataURL(file);
+    });
+  }
   function goalSheet(id) {
     const ed = id ? S.goals.find(g => g.id === id) : null;
+    let img = ed && ed.img ? ed.img : '';
     openSheet(`<h3>${ed ? 'Edit item' : 'New shop item'}</h3><div class="sub">Something you can buy with gems.</div>
       <label class="l">Name</label><input class="field" id="gn" maxlength="30" placeholder="Gaming weekend" value="${ed ? esc(ed.name) : ''}">
       <label class="l">Price in gems</label><input class="field" id="gt" type="number" inputmode="numeric" step="1" min="1" placeholder="30" value="${ed ? ed.target : ''}">
       <label class="l">What is it for?</label><select class="field sel" id="gc">${SHOP_CATS.map(c => `<option ${((ed && ed.cat) || 'Fun') === c ? 'selected' : ''}>${c}</option>`).join('')}</select>
+      <label class="l">Cover picture (optional)</label>
+      <div id="gimg" class="gimg">${ed && ed.img ? `<img src="${ed.img}" alt="">` : '<span>No picture yet</span>'}</div>
+      <div style="display:flex;gap:8px;margin-top:8px"><label class="chip" style="margin:0;cursor:pointer">Choose a picture / screenshot<input type="file" id="gf" accept="image/*" hidden></label><button type="button" class="chip" id="gr" style="margin:0" ${ed && ed.img ? '' : 'hidden'}>Remove</button></div>
       <label class="switch" style="margin-top:12px"><input type="checkbox" id="gp" ${ed ? (ed.pin ? 'checked' : '') : ''}><span>I'm saving up for this (shows progress, removed once bought)</span></label>
       <button class="btn" id="ok">${ed ? 'Save changes' : 'Add to shop'}</button>
       ${ed ? '<button class="link" id="del">Delete this item</button>' : ''}`, w => {
       $('#ok', w).onclick = () => {
         const name = $('#gn', w).value.trim(), t = Math.round(parseFloat($('#gt', w).value)), cat = $('#gc', w).value, pin = $('#gp', w).checked;
         if (!name) { $('#gn', w).focus(); return; } if (!(t > 0)) { $('#gt', w).focus(); return; }
-        if (ed) Object.assign(ed, { name, target: t, cat, pin, mod: Date.now() }); else S.goals.push({ id: uid(), name, target: t, cat, pin, created: Date.now(), mod: Date.now() });
+        if (ed) { Object.assign(ed, { name, target: t, cat, pin, mod: Date.now() }); if (img) ed.img = img; else delete ed.img; }
+        else S.goals.push({ id: uid(), name, target: t, cat, pin, ...(img ? { img } : {}), created: Date.now(), mod: Date.now() });
         save(); closeSheet(); render();
       };
       const del = $('#del', w);
       if (del) del.onclick = () => { if (confirm(`Delete “${ed.name}”?`)) { S.goals = S.goals.filter(g => g.id !== ed.id); gone(ed.id); save(); closeSheet(); render(); } };
+      const box = $('#gimg', w), rm = $('#gr', w);
+      const show = () => { box.innerHTML = img ? `<img src="${img}" alt="">` : '<span>No picture yet</span>'; rm.hidden = !img; };
+      $('#gf', w).onchange = async e => { const f = e.target.files && e.target.files[0]; if (!f) return; try { img = await shrinkImage(f); show(); } catch { flash("Couldn't use that picture — try a screenshot or JPG/PNG"); } };
+      rm.onclick = () => { img = ''; show(); };
       $('#gn', w).focus();
     });
   }
