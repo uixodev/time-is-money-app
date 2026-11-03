@@ -5,7 +5,7 @@
 (() => {
   'use strict';
   const KEY = 'tick.v1';
-  const VERSION = 'v37';   // bump with the ?v= number in index.html so browsers fetch fresh files
+  const VERSION = 'v38';   // bump with the ?v= number in index.html so browsers fetch fresh files
   const DAY = 86400;
   const $ = (s, el = document) => el.querySelector(s);
   // one tonal green family (+ ink) so every deed colour belongs to the brand
@@ -305,7 +305,7 @@
     const ticks = gain * PILLARS[d.pillar].price;   // pays in proportion to what it actually refilled
     refill(d.pillar, gain);
     S.entries.push({ id: uid(), deedId: id, ts: Date.now(), secs: 0, ticks });
-    save(); flash(`+${t1(ticks)} Tons · ${PILLARS[d.pillar].name} (${leftLbl(d)})`, { label: '+ note', fn: () => freeNoteSheet('care', { deedId: id }, d.name) }); render();
+    save(); flash(`+${t1(ticks)} Tons · ${PILLARS[d.pillar].name} (${leftLbl(d)})`); render(); chime();
   }
 
   // ---------- celebration: confetti + chime ----------
@@ -383,14 +383,20 @@
     });
   }
   const statBox = (v, l) => `<div class="stat"><b>${v}</b><span>${l}</span></div>`;
+  // a small centred pop-up with confetti and a chime — no note prompt (notes can still be written from the Journal)
+  function miniSummary(o) {
+    openSheet(`<div style="text-align:center"><div style="font-size:44px;line-height:1">${o.emoji}</div><h3 style="margin:8px 0 2px">${o.heading}</h3><div class="sub" style="margin:0">${o.sub}</div></div>
+      ${o.stats}${o.foot ? `<div class="sub" style="margin-top:10px;text-align:center">${o.foot}</div>` : ''}
+      <button class="btn" id="ok" style="margin-top:14px">Nice</button>`, w => { $('#ok', w).onclick = closeSheet; });
+    $('#sheet').classList.add('mini');
+    confetti(); chime();
+  }
   function investSummary(d, secs, cost, divBefore, divAfter) {
     const st = investStats(d), gain = divAfter - divBefore;
-    noteSheet({
-      heading: 'Session done 👏', sub: `<b>${esc(d.name)}</b> · total ${nf(Math.round(st.hours * 10) / 10)}h invested`,
-      stats: `<div class="stats">${statBox(dur(secs), 'time invested')}${statBox(tk + '−' + t1(cost), 'Tons spent')}${statBox('+' + (secs / 3600).toFixed(1) + 'h', 'skill added')}${statBox(tk + '+' + t1(gain), 'dividend / day')}</div>
-        <div class="sub" style="margin-top:10px">${st.net >= 0 ? 'This investment is in profit ✓' : `Break-even: ${fmtDays(st.days)}`}</div>`,
-      noteLabel: 'What did you get from this?', placeholder: 'What did you get done? What did you learn? What is next?', ratingLabel: 'How focused were you?',
-      onSave: (text, rating) => { addNote({ kind: 'invest', deedId: d.id, title: d.name, line: `${dur(secs)} · −${t1(cost)} Tons · dividend +${t1(gain)}/day`, text, rating }); flash('Saved to your Journal'); render(); },
+    miniSummary({
+      emoji: '🚀', heading: 'Session done', sub: `<b>${esc(d.name)}</b> · total ${nf(Math.round(st.hours * 10) / 10)}h invested`,
+      stats: `<div class="stats">${statBox(dur(secs), 'time invested')}${statBox(tk + '−' + t1(cost), 'Tons spent')}${statBox('+' + (secs / 3600).toFixed(1) + 'h', 'skill added')}${statBox(tk + '+' + t1(gain), 'dividend / day')}</div>`,
+      foot: st.net >= 0 ? 'This investment is in profit ✓' : `Break-even: ${fmtDays(st.days)}`,
     });
   }
   function rewardSummary(b, g, left) {
@@ -416,11 +422,10 @@
   }
   function careSummary(d, secs, earned, before, after) {
     const p = PILLARS[d.pillar];
-    noteSheet({
-      heading: 'Nicely done 💚', sub: `<b>${esc(d.name)}</b> · ${p.name} · Health ${healthWord()}`,
+    miniSummary({
+      emoji: '💚', heading: 'Nicely done', sub: `<b>${esc(d.name)}</b> · ${p.name} · Health ${healthWord()}`,
       stats: `<div class="stats">${statBox(dur(secs), 'time')}${statBox(tk + '+' + t1(earned), 'Tons earned')}${statBox(tk + '+' + fmtSec(secs > 0 ? earned / secs : 0), 'Tons per second')}${statBox(roomTons(d.pillar) < 0.05 ? 'Full' : tk + t1(roomTons(d.pillar)), p.name + ' · left to earn')}</div>`,
-      noteLabel: 'How did it go?', placeholder: 'How do you feel? Anything worth remembering?', ratingLabel: 'How do you feel?',
-      onSave: (text, rating) => { addNote({ kind: 'care', deedId: d.id, title: d.name, line: `${dur(secs)} · +${t1(earned)} Tons · ${p.name}`, text, rating }); flash('Saved to your Journal'); render(); },
+      foot: `Balance ${tk}${t1(balance())}`,
     });
   }
   function editNoteSheet(id) {
@@ -461,7 +466,7 @@
     onMount && onMount(w);
   }
   const sheetQueue = [];   // pop-ups waiting their turn (e.g. summaries after "Stop all")
-  const closeSheet = () => { const w = $('#sheet'); w.hidden = true; w.innerHTML = ''; if (sheetQueue.length) { const next = sheetQueue.shift(); setTimeout(next, 300); } };
+  const closeSheet = () => { const w = $('#sheet'); w.classList.remove('mini'); w.hidden = true; w.innerHTML = ''; if (sheetQueue.length) { const next = sheetQueue.shift(); setTimeout(next, 300); } };
   const coinList = () => `<div class="coinlist">${['tick', 'ten', 'hundred'].map(k => `
     <div class="cl">${coin(k)}<div><b>${COINS[k].name}</b><span>${COINS[k].value} Ton${COINS[k].value > 1 ? 's' : ''}</span></div></div>`).join('')}</div>`;
 

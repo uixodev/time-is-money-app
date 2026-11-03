@@ -311,3 +311,7 @@ textarea.field{min-height:96px;resize:vertical;line-height:1.4}
 .card.run .tA-min{grid-row:2}
 .card.run .tA-sub{grid-row:3;text-align:left;padding-left:2px}
 .card.run .tA{overflow:visible}
+
+/* v38 mini celebration pop-up */
+.sheet-wrap.mini{align-items:center;justify-content:center;padding:0 22px}
+.sheet-wrap.mini .sheet{border-radius:28px;max-width:340px;max-height:86%;padding:22px 18px 18px}
