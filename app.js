@@ -5,7 +5,7 @@
 (() => {
   'use strict';
   const KEY = 'tick.v1';
-  const VERSION = 'v50';   // bump with the ?v= number in index.html so browsers fetch fresh files
+  const VERSION = 'v51';   // bump with the ?v= number in index.html so browsers fetch fresh files
   const DAY = 86400;
   const $ = (s, el = document) => el.querySelector(s);
   // one tonal green family (+ ink) so every deed colour belongs to the brand
@@ -24,7 +24,7 @@
   };
   // Daily targets are real-life amounts (8h sleep, 3 meals, 30 min of movement…). `cap` is the most Tons a pillar can pay in one day.
   // To invest you must reach a minimum share of today's target in the pillars you choose (S.gate, edit it on the Invest tab).
-  const GATE_DEFAULT = { sleep: 0.5, food: 0.25 };
+  const GATE_DEFAULT = { sleep: 420, food: 1, move: 5, hygiene: 1, home: 10 };   // exact minimums (minutes or check-ins) needed today before you can invest
   const MAX_ACTIVE = 3;           // deeds you can run at the same time
   const HEALTH_MIN = 40;          // below this overall Health you can't start an investment
   const FADE = 0.98;              // skills fade 2% a day without practice
@@ -104,7 +104,7 @@
       S.goals.forEach(g => { g.target = Math.max(1, Math.round(g.target / 5)); g.mod = Date.now(); });   // goals are now priced in gems
       S.gemsV = 1;
     }
-    if (!S.gate || typeof S.gate !== 'object') S.gate = { ...GATE_DEFAULT };
+    if (!S.gate || typeof S.gate !== 'object' || S.gateV !== 2) { S.gate = { ...GATE_DEFAULT }; S.gateV = 2; }   // v51: rules are exact amounts now (7h sleep, 1 meal, 5 min move, 1 wash, 10 min cleaning)
     if (S.shopV !== 1) {                                               // v45: Goals became a Shop. Old goals are "saving for" items; a few starter items are added once.
       const dead = S.tomb || [];
       S.goals.forEach(g => { if (g.pin === undefined) g.pin = true; if (!g.cat) g.cat = 'Other'; });
@@ -238,7 +238,7 @@
   const payRoom = k => Math.min(roomTons(k), dayRoomP(k));                        // …and before it is full — whichever runs out first
   const tgtFmt = (k, v) => { const P = PILLARS[k]; return P.unit === 'min' ? (v >= 60 ? `${nf(Math.round(v / 6) / 10)}h` : `${Math.round(v)} min`) : `${Math.round(v)}`; };
   const tgtName = (k, v) => { const P = PILLARS[k]; return P.unit === 'min' ? tgtFmt(k, v) : `${Math.round(v)} ${P.noun}${Math.round(v) === 1 ? '' : 's'}`; };
-  const gateNeed = k => Math.ceil(PILLARS[k].target * (S.gate[k] || 0) - 1e-9);   // how much of the target investing requires
+  const gateNeed = k => Math.max(0, S.gate[k] || 0);   // the minimum (minutes or check-ins) investing requires today
   const gateMissing = () => Object.keys(PILLARS).filter(k => (S.gate[k] || 0) > 0 && dayProgress(k) + 1e-9 < gateNeed(k)).map(k => ({ k, need: gateNeed(k), have: dayProgress(k) }));
   const gateMsg = () => { const m = gateMissing(); return m.length ? 'Finish first: ' + m.map(x => `${PILLARS[x.k].name} ${tgtName(x.k, x.need)} (done ${tgtFmt(x.k, x.have)})`).join(' · ') : ''; };
   const healthScore = () => { const v = Object.keys(PILLARS).map(pv); return 0.6 * (v.reduce((a, b) => a + b, 0) / v.length) + 0.4 * Math.min(...v); };
@@ -600,7 +600,7 @@
     const out = { onboarded: !!d.onboarded };
     ['created', 'gift', 'divAt', 'divCollected', 'divLegacy', 'gemsCollected', 'gemsV', 'shopV'].forEach(k => { if (N(d[k])) out[k] = d[k]; });
     if (typeof d.divAuto === 'boolean') out.divAuto = d.divAuto;
-    if (d.gate && typeof d.gate === 'object') out.gate = Object.fromEntries(Object.keys(PILLARS).filter(k => N(d.gate[k])).map(k => [k, Math.max(0, Math.min(1, d.gate[k]))]));
+    if (d.gate && typeof d.gate === 'object') { out.gate = Object.fromEntries(Object.keys(PILLARS).filter(k => N(d.gate[k])).map(k => [k, Math.max(0, Math.min(PILLARS[k].target, Math.round(d.gate[k])))])); if (d.gateV === 2) out.gateV = 2; else delete out.gate; }
     out.deeds = A(d.deeds).filter(x => x && ID(x.id) && T(x.name) && KINDS.includes(x.kind) &&
       (x.kind === 'care' ? Object.prototype.hasOwnProperty.call(PILLARS, x.pillar) && ['timer', 'tap'].includes(x.mode) && N(x.pts) && x.pts > 0 : x.kind === 'neutral' || N(x.rate)))
       .map(x => ({ id: x.id, name: TXT(x.name, 40), color: PALETTE.includes(x.color) ? x.color : PALETTE[0], kind: x.kind, rate: N(x.rate) ? x.rate : 0,
@@ -816,23 +816,22 @@
     const rows = Object.keys(PILLARS).map(k => {
       const P = PILLARS[k], have = dayProgress(k), pct = Math.min(100, have / P.target * 100), g = S.gate[k] || 0, met = !g || have + 1e-9 >= gateNeed(k), earned = dayEarnedP(k), full = earned >= P.cap - 0.05;
       return `<div class="hp"><div class="hpt"><b>${P.name}${g ? ` <em class="${met ? 'ok' : 'need'}">${met ? '✓' : 'needed to invest'}</em>` : ''}</b><span>${tgtFmt(k, have)} of ${tgtName(k, P.target)}</span></div>
-        <div class="hpb"><i class="${pct >= 100 ? 'done' : ''}" style="width:${pct}%"></i>${g ? `<u style="left:${Math.min(100, g * 100)}%"></u>` : ''}</div>
+        <div class="hpb"><i class="${pct >= 100 ? 'done' : ''}" style="width:${pct}%"></i>${g ? `<u style="left:${Math.min(100, g / P.target * 100)}%"></u>` : ''}</div>
         <div class="hps"><span>${tk}${t1(earned)} of ${P.cap} earned today</span>${full ? '<span>daily limit reached</span>' : ''}</div></div>`;
     }).join('');
     const miss = gateMissing();
     return `<div class="card"><div class="sechead" style="margin:0 0 6px"><span class="eyebrow">Today's health</span><button class="link" data-act="gate">Investing rules ›</button></div>
       <div class="sub" style="margin:0 0 8px">${miss.length ? esc(gateMsg()) : 'You can invest today ✓'}</div>${rows}</div>`;
   }
-  const GATE_STEPS = [0, 0.25, 0.5, 0.75, 1];
   function gateSheet() {
     openSheet(`<div style="display:flex;justify-content:space-between;align-items:center"><h3 style="margin:0">Investing rules</h3><button id="x" aria-label="Close" style="width:38px;height:38px;border-radius:50%;border:1.5px solid var(--ink);background:none;color:var(--ink);font-size:22px;line-height:1;cursor:pointer">×</button></div>
-      <div class="sub" style="margin-bottom:8px">To start an investment you must first reach this share of today's target in each pillar you switch on. It resets every midnight.</div>
-      ${Object.keys(PILLARS).map(k => { const P = PILLARS[k], g = S.gate[k] || 0; return `<div style="margin-top:12px"><div style="display:flex;justify-content:space-between"><b>${P.name}</b><span class="sub" style="margin:0">${g ? `need ${tgtName(k, gateNeed(k))} of ${tgtName(k, P.target)}` : `target ${tgtName(k, P.target)} · not required`}</span></div>
-        <div class="seg">${GATE_STEPS.map(v => `<button type="button" data-g="${k}:${v}" class="${Math.abs(g - v) < 1e-6 ? 'on' : ''}">${v ? Math.round(v * 100) + '%' : 'Off'}</button>`).join('')}</div></div>`; }).join('')}
+      <div class="sub" style="margin-bottom:6px">To start an investment you must first reach these minimums today. Leave a box empty (or 0) to switch a rule off. They reset every midnight.</div>
+      ${Object.keys(PILLARS).map(k => { const P = PILLARS[k], g = S.gate[k] || 0, u = P.unit === 'min' ? 'minutes' : P.noun + 's'; return `<div class="grule"><div><b>${P.name}</b><div class="sub" style="margin:0">daily target ${tgtName(k, P.target)}</div></div>
+        <label class="gin"><input type="number" inputmode="numeric" min="0" max="${P.target}" step="1" data-gk="${k}" value="${g || ''}" placeholder="off"><span>${u}</span></label></div>`; }).join('')}
       <div class="sub" style="margin-top:14px">Daily limits: each pillar can pay at most ${Object.keys(PILLARS).map(k => `${PILLARS[k].name} ${PILLARS[k].cap}`).join(' · ')} Tons a day.</div>
       <button class="btn" id="ok" style="margin-top:12px">Done</button>`, w => {
-      $('#x', w).onclick = closeSheet; $('#ok', w).onclick = closeSheet;
-      w.onclick = e => { if (e.target === w) { closeSheet(); return; } const b = e.target.closest('[data-g]'); if (!b) return; const [k, v] = b.dataset.g.split(':'); S.gate[k] = parseFloat(v); save(); const sc = w.firstElementChild.scrollTop; gateSheet(); const n = $('#sheet').firstElementChild; if (n) n.scrollTop = sc; render(); };
+      $('#x', w).onclick = closeSheet; $('#ok', w).onclick = () => { closeSheet(); render(); };
+      w.querySelectorAll('[data-gk]').forEach(i => i.oninput = () => { const k = i.dataset.gk, v = Math.max(0, Math.min(PILLARS[k].target, Math.round(parseFloat(i.value) || 0))); S.gate[k] = v; S.gate.mod = Date.now(); save(); });
     });
   }
   function viewWallet() {
@@ -1398,6 +1397,7 @@
     out.gemsCollected = Math.max(l.gemsCollected || 0, c.gemsCollected || 0); out.divLegacy = Math.max(l.divLegacy || 0, c.divLegacy || 0);
     if (typeof l.divCollected === 'number' || typeof c.divCollected === 'number') out.divCollected = Math.max(l.divCollected || 0, c.divCollected || 0);   // collecting can only move forward, so two devices never pay twice
     out.sound = l.sound; out.chat = l.chat || c.chat || [];
+    { const src = l.gateV === 2 ? l : c.gateV === 2 ? c : null; if (src) { out.gate = src.gate; out.gateV = 2; } else { delete out.gate; delete out.gateV; } }   // investing rules: use whichever side already has exact amounts
     return out;
   }
   function adopt(next) { const snd = S.sound; S = Object.assign(defaults(), next); S.sound = snd; migrate(); }
