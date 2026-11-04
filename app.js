@@ -5,7 +5,7 @@
 (() => {
   'use strict';
   const KEY = 'tick.v1';
-  const VERSION = 'v51';   // bump with the ?v= number in index.html so browsers fetch fresh files
+  const VERSION = 'v52';   // bump with the ?v= number in index.html so browsers fetch fresh files
   const DAY = 86400;
   const $ = (s, el = document) => el.querySelector(s);
   // one tonal green family (+ ink) so every deed colour belongs to the brand
@@ -848,7 +848,7 @@
       </div>
       <div class="qas">${act('earn', 'Earn', 'data-pick="care"')}${act('invest', 'Invest', 'data-pick="invest"')}${act('spend', 'Spend', 'data-pick="useless"')}${act('history', 'History', 'data-act="ledger"')}</div>
       ${runningHTML()}
-      ${todayHealthHTML()}${incomingHTML()}${nextGoalHTML()}
+      ${incomingHTML()}${nextGoalHTML()}
       <div class="sechead"><b>Recent activity</b><button class="link" data-act="ledger">See all</button></div>
       <div class="card txl" id="recent">${recentHTML()}</div>
       <div class="sechead"><b>Where today went</b></div>
@@ -875,6 +875,7 @@
     };
     return `
       ${head('Deeds', '<button class="icon-btn" data-act="adddeed" aria-label="Add deed">+</button>')}
+      ${todayHealthHTML()}
       ${grp('care', 'Care · refill your Health, earn Tons')}${grp('invest', 'Investments · cost Tons, pay gems')}${grp('neutral', 'Just living')}
       <button class="btn lime" data-act="logpast" style="border:1.5px solid var(--ink)">+ Log an exact amount</button>`;
   }
