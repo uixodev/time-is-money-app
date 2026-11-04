@@ -5,7 +5,7 @@
 (() => {
   'use strict';
   const KEY = 'tick.v1';
-  const VERSION = 'v52';   // bump with the ?v= number in index.html so browsers fetch fresh files
+  const VERSION = 'v53';   // bump with the ?v= number in index.html so browsers fetch fresh files
   const DAY = 86400;
   const $ = (s, el = document) => el.querySelector(s);
   // one tonal green family (+ ink) so every deed colour belongs to the brand
@@ -157,6 +157,8 @@
   const markSVG = size => signSVG('', size);
   const tk = signSVG('tk');
   const gm = '<svg class="gm" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 12H46L58 26L32 56L6 26Z"/><path d="M6 26H58M24 12L20 26L32 56L44 26L40 12"/></svg>';
+  const periodOn = () => !!(S.period && S.period.on);
+  const price = g => (periodOn() ? 1 : g.target);   // Period mode: everything in the shop costs 1 gem
   const gemN = n => Math.round(n).toLocaleString();
   const gemRate = n => n >= 9.5 ? gemN(n) : n < 0.05 ? '0' : String(Math.round(n * 10) / 10);   // per-day RATES can be fractions; counts are always whole
   const symbol = (size = 26) => signSVG('', size);
@@ -510,9 +512,9 @@
 
   function buyGoal(id, el) {
     const g = S.goals.find(x => x.id === id); if (!g) return;
-    if (gems() < g.target) { const n = g.target - gems(); flash(`You need ${gemN(n)} more gem${n === 1 ? '' : 's'}`); return; }
+    if (gems() < price(g)) { const n = price(g) - gems(); flash(`You need ${gemN(n)} more gem${n === 1 ? '' : 's'}`); return; }
     const rid = `reward:${uid()}`, ts = Date.now();
-    const rec = { id: rid, name: g.name, cost: g.target, cur: 'gem', cat: g.cat || 'Other', ts }; S.bought.unshift(rec);
+    const rec = { id: rid, name: g.name, cost: price(g), cur: 'gem', cat: g.cat || 'Other', ts }; S.bought.unshift(rec);
     if (g.pin) { S.goals = S.goals.filter(x => x.id !== id); gone(id); }   // a goal you saved up for is done; shop items stay for next time
     save(); render(); confetti(el); chime();
     rewardSummary(rec, g, gems());
@@ -529,13 +531,13 @@
   function spendAnySheet() {
     openSheet(`<h3>Treat myself</h3><div class="sub">Spend gems on whatever you like — it's yours to decide.</div>
       <label class="l">What for?</label><input class="field" id="sn" maxlength="30" placeholder="Pizza night">
-      <label class="l">Gems</label><input class="field" id="sg" type="number" inputmode="numeric" step="1" min="1" placeholder="10">
+      <label class="l">Gems</label><input class="field" id="sg" type="number" inputmode="numeric" step="1" min="1" placeholder="10" ${periodOn() ? 'value="1" readonly' : ''}>${periodOn() ? '<div class="sub">Period mode: everything costs 1 gem.</div>' : ''}
       <label class="l">Category</label><select class="field sel" id="sc">${SHOP_CATS.map(c => `<option>${c}</option>`).join('')}</select>
       <div class="sub" style="margin-top:8px">You have ${gm} ${gemN(gems())}.</div>
       <button class="btn" id="ok">Spend</button><button class="link" id="skip">Cancel</button>`, w => {
       $('#skip', w).onclick = closeSheet;
       $('#ok', w).onclick = () => {
-        const name = $('#sn', w).value.trim(), n = Math.round(parseFloat($('#sg', w).value)), cat = $('#sc', w).value;
+        const name = $('#sn', w).value.trim(), n = periodOn() ? 1 : Math.round(parseFloat($('#sg', w).value)), cat = $('#sc', w).value;
         if (!name) { $('#sn', w).focus(); return; } if (!(n > 0)) { $('#sg', w).focus(); return; }
         if (n > gems()) { flash(`You only have ${gemN(gems())} gem${gems() === 1 ? '' : 's'}`); return; }
         const rec = { id: `reward:${uid()}`, name, cost: n, cur: 'gem', cat, ts: Date.now() }; S.bought.unshift(rec);
@@ -600,6 +602,7 @@
     const out = { onboarded: !!d.onboarded };
     ['created', 'gift', 'divAt', 'divCollected', 'divLegacy', 'gemsCollected', 'gemsV', 'shopV'].forEach(k => { if (N(d[k])) out[k] = d[k]; });
     if (typeof d.divAuto === 'boolean') out.divAuto = d.divAuto;
+    if (d.period && typeof d.period === 'object' && typeof d.period.on === 'boolean') out.period = { on: d.period.on, since: N(d.period.since) ? d.period.since : 0, mod: N(d.period.mod) ? d.period.mod : 0 };
     if (d.gate && typeof d.gate === 'object') { out.gate = Object.fromEntries(Object.keys(PILLARS).filter(k => N(d.gate[k])).map(k => [k, Math.max(0, Math.min(PILLARS[k].target, Math.round(d.gate[k])))])); if (d.gateV === 2) out.gateV = 2; else delete out.gate; }
     out.deeds = A(d.deeds).filter(x => x && ID(x.id) && T(x.name) && KINDS.includes(x.kind) &&
       (x.kind === 'care' ? Object.prototype.hasOwnProperty.call(PILLARS, x.pillar) && ['timer', 'tap'].includes(x.mode) && N(x.pts) && x.pts > 0 : x.kind === 'neutral' || N(x.rate)))
@@ -800,15 +803,15 @@
   // the goal you're closest to — with the Buy button right here
   function nextGoalHTML() {
     const sv = S.goals.filter(x => x.pin); if (!sv.length) return '';
-    const have = gems(), g = [...sv].sort((a, b) => (a.target - have) - (b.target - have))[0], need = g.target - have, can = need <= 0;
+    const have = gems(), g = [...sv].sort((a, b) => (a.target - have) - (b.target - have))[0], need = price(g) - have, can = need <= 0;
     const inc = S.deeds.filter(d => d.kind === 'invest').reduce((a, d) => a + gemsPerDay(d), 0);
     return `<div class="card">
       ${IMG_OK(g.img) ? `<div class="cover" style="margin:-4px -4px 10px"><img src="${g.img}" alt=""></div>` : ''}
       <div class="sechead" style="margin:0 0 4px"><span class="eyebrow">Saving up for</span><button class="link" data-tab="goals">Shop ›</button></div>
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><b style="font-size:20px;letter-spacing:-.3px">${esc(g.name)}</b><span class="gv" style="font-size:18px">${gm}<b>${gemN(Math.min(have, g.target))}</b><small>/ ${gemN(g.target)}</small></span></div>
-      <div class="bar"><i style="width:${Math.max(0, Math.min(100, (have / g.target) * 100))}%"></i></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><b style="font-size:20px;letter-spacing:-.3px">${esc(g.name)}</b><span class="gv" style="font-size:18px">${gm}<b>${gemN(Math.min(have, price(g)))}</b><small>/ ${gemN(price(g))}</small></span></div>
+      <div class="bar"><i style="width:${Math.max(0, Math.min(100, (have / price(g)) * 100))}%"></i></div>
       <div class="sub" style="margin-top:6px">${can ? 'You can afford it 🎉' : `${gemN(need)} gem${need === 1 ? '' : 's'} to go${inc > 0.05 ? ` · about ${Math.max(1, Math.ceil(need / inc))} day${Math.ceil(need / inc) <= 1 ? '' : 's'} at your pace` : ' · invest to earn gems'}`}</div>
-      ${can ? `<button class="btn" data-buy="${g.id}" style="margin-top:10px">Buy it · ${gm} ${gemN(g.target)}</button>` : ''}
+      ${can ? `<button class="btn" data-buy="${g.id}" style="margin-top:10px">Buy it · ${gm} ${gemN(price(g))}</button>` : ''}
     </div>`;
   }
   // today's progress against real-life targets, how much each pillar has paid, and what investing needs
@@ -975,22 +978,23 @@
     const have = gems(), inc = S.deeds.filter(d => d.kind === 'invest').reduce((a, d) => a + gemsPerDay(d), 0);
     const saving = S.goals.filter(g => g.pin), shop = S.goals.filter(g => !g.pin);
     const savingCard = (g, i) => {
-      const pct = Math.min(100, (have / g.target) * 100), cls = ['peach', 'mint', 'sky'][i % 3], need = g.target - have, can = need <= 0;
+      const pct = Math.min(100, (have / price(g)) * 100), cls = ['peach', 'mint', 'sky'][i % 3], need = price(g) - have, can = need <= 0;
       return `<div class="card ${cls}">
         ${IMG_OK(g.img) ? `<div class="cover"><img src="${g.img}" alt=""></div>` : ''}
         <div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><button class="gname" data-edit-goal="${g.id}" aria-label="Edit ${esc(g.name)}" style="font-size:22px;font-weight:800;letter-spacing:-.5px;text-align:left;padding:0">${esc(g.name)}</button><button class="x edit" data-edit-goal="${g.id}" aria-label="Edit ${esc(g.name)}">✎</button></div>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px"><span class="gv" style="font-size:26px"><i style="display:none"></i>${gm}<b>${gemN(Math.min(have, g.target))}</b><small>/ ${gemN(g.target)}</small></span><span class="sub" style="margin:0;font-weight:700">${Math.round(pct)}%</span></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px"><span class="gv" style="font-size:26px"><i style="display:none"></i>${gm}<b>${gemN(Math.min(have, price(g)))}</b><small>/ ${gemN(price(g))}</small></span><span class="sub" style="margin:0;font-weight:700">${Math.round(pct)}%</span></div>
         <div class="bar" style="margin-top:8px"><i style="width:${pct}%"></i></div>
         <div class="sub" style="margin-top:8px">${can ? 'You can afford it 🎉' : `${gemN(need)} gem${need === 1 ? '' : 's'} to go${inc > 0.05 ? ` · about ${Math.max(1, Math.ceil(need / inc))} day${Math.ceil(need / inc) <= 1 ? '' : 's'} at your pace` : ' · invest to earn gems'}`}</div>
-        <button class="btn" data-buy="${g.id}" ${can ? '' : 'disabled'}>${can ? `Buy it · ${gm} ${gemN(g.target)}` : 'Keep investing'}</button></div>`;
+        <button class="btn" data-buy="${g.id}" ${can ? '' : 'disabled'}>${can ? `Buy it · ${gm} ${gemN(price(g))}` : 'Keep investing'}</button></div>`;
     };
     const cats = [...SHOP_CATS, ...new Set(shop.map(g => g.cat).filter(c => c && !SHOP_CATS.includes(c)))].filter(c => shop.some(g => (g.cat || 'Other') === c));
-    const row = g => { const can = have >= g.target; return `<div class="row">${IMG_OK(g.img) ? `<img class="thumb" src="${g.img}" alt="">` : ''}<div class="t"><b>${esc(g.name)}</b><span>${gm} ${gemN(g.target)}${can ? '' : ` · ${gemN(g.target - have)} more`}</span></div>
+    const row = g => { const can = have >= price(g); return `<div class="row">${IMG_OK(g.img) ? `<img class="thumb" src="${g.img}" alt="">` : ''}<div class="t"><b>${esc(g.name)}</b><span>${gm} ${gemN(price(g))}${periodOn() ? ` <s>${gemN(g.target)}</s>` : ''}${can ? '' : ` · ${gemN(price(g) - have)} more`}</span></div>
       <button class="pbtn" data-buy="${g.id}" ${can ? '' : 'disabled style="opacity:.4"'}>Buy</button><button class="x edit" data-edit-goal="${g.id}" aria-label="Edit ${esc(g.name)}">✎</button></div>`; };
     return `
       ${head('Shop', '<button class="icon-btn" data-act="addgoal" aria-label="Add shop item">+</button>')}
       <div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><div class="eyebrow">Your gems</div><span class="gv">${gm}<b>${gemN(have)}</b></span></div>${gemsPending() >= 1 ? `<button class="pbtn" data-act="collect">Collect +${gemN(gemsPending())}</button>` : ''}</div>
       ${cloudLine()}
+      <div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:10px;${periodOn() ? 'background:var(--lime);color:#16210F;border-color:transparent' : ''}"><div style="min-width:0"><div class="eyebrow" ${periodOn() ? 'style="color:#16210F;opacity:.7"' : ''}>Period mode</div><div class="sub" style="margin:2px 0 0;${periodOn() ? 'color:#16210F' : ''}">${periodOn() ? `On since ${fmtDate(S.period.since)} · everything costs ${gm} 1` : 'Switch on and everything in the shop costs 1 gem.'}</div></div><button class="chip" style="margin:0;${periodOn() ? 'border-color:#16210F;color:#16210F;' : ''}" data-act="period">${periodOn() ? 'Turn off' : 'Turn on'}</button></div>
       <button class="btn lime" data-act="spendany" style="border:1.5px solid var(--ink);margin-bottom:12px">Treat myself — spend on anything</button>
       <div class="card"><div class="sechead" style="margin:0 0 4px"><span class="eyebrow">Buy gems with Tons</span><span class="sub" style="margin:0">1 ${gm} = ${tk}${GEM_BUY_PRICE}</span></div>
         <div class="sub" style="margin:0 0 10px">Pricey on purpose — investing earns gems far cheaper. You have ${tk}${t1(Math.max(0, balance()))}.</div>
@@ -1322,6 +1326,7 @@
       case 'logpast': logPastSheet(); break;
       case 'addgoal': goalSheet(); break;
       case 'spendany': spendAnySheet(); break;
+      case 'period': { const on = !periodOn(); S.period = { on, since: on ? Date.now() : (S.period && S.period.since) || 0, mod: Date.now() }; save(); render(); flash(on ? 'Period mode on — everything costs 1 gem' : 'Period mode off — normal prices'); break; }
       case 'gate': gateSheet(); break;
       case 'syncnow': if (user) { flash('Syncing…'); syncNow(); } break;
       case 'addinvest': deedSheet(null, 'invest'); break;
@@ -1398,6 +1403,8 @@
     out.gemsCollected = Math.max(l.gemsCollected || 0, c.gemsCollected || 0); out.divLegacy = Math.max(l.divLegacy || 0, c.divLegacy || 0);
     if (typeof l.divCollected === 'number' || typeof c.divCollected === 'number') out.divCollected = Math.max(l.divCollected || 0, c.divCollected || 0);   // collecting can only move forward, so two devices never pay twice
     out.sound = l.sound; out.chat = l.chat || c.chat || [];
+    out.period = ((l.period && l.period.mod) || 0) >= ((c.period && c.period.mod) || 0) ? l.period : c.period;   // the most recent switch wins on every device
+    if (!out.period) delete out.period;
     { const src = l.gateV === 2 ? l : c.gateV === 2 ? c : null; if (src) { out.gate = src.gate; out.gateV = 2; } else { delete out.gate; delete out.gateV; } }   // investing rules: use whichever side already has exact amounts
     return out;
   }
