@@ -372,3 +372,8 @@ textarea.field{min-height:96px;resize:vertical;line-height:1.4}
 .irow b{white-space:nowrap}
 .ell{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .hero .gv.big{color:#16210F}
+
+.packs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.pack{display:flex;flex-direction:column;align-items:center;gap:2px;padding:10px 4px;border-radius:16px;border:1.5px solid var(--ink);background:var(--bg)}
+.pack:active{background:var(--lime);color:#16210F}
+.pack[disabled]{opacity:.4;cursor:not-allowed}

@@ -5,7 +5,7 @@
 (() => {
   'use strict';
   const KEY = 'tick.v1';
-  const VERSION = 'v48';   // bump with the ?v= number in index.html so browsers fetch fresh files
+  const VERSION = 'v49';   // bump with the ?v= number in index.html so browsers fetch fresh files
   const DAY = 86400;
   const $ = (s, el = document) => el.querySelector(s);
   // one tonal green family (+ ink) so every deed colour belongs to the brand
@@ -26,6 +26,7 @@
   const HEALTH_MIN = 40;          // below this overall Health you can't start an investment
   const FADE = 0.98;              // skills fade 2% a day without practice
   const SHOP_CATS = ['Food', 'Fun', 'Rest', 'Self-care', 'Learning', 'Other'];   // what an item in the shop is for
+  const GEM_BUY_PRICE = 30;       // buying gems with Tons is deliberately expensive: 1 gem = 30 Tons
   const GEM_PER_DIV = 5;          // investments pay in GEMS (whole numbers): 1 Ton of dividend = 5 gems
   const DIV_PER_RATE = 2;         // dividend: Tons/day per effective hour, per Tons/min of cost (0.5/min → 1 Tons/day per hour)
   const DEBT_SURCHARGE = 1.5;     // useless time costs +50% while you're in debt
@@ -194,6 +195,7 @@
   const nextMidnight = () => { const d = new Date(); d.setHours(24, 0, 0, 0); return d.getTime(); };
   const deedOf = id => {
     const d = S.deeds.find(x => x.id === id); if (d) return d;
+    if (String(id).startsWith('buy:')) return { id, name: 'Bought gems', color: '#C9F26B', kind: 'exchange', rate: 0 };
     if (String(id).startsWith('adjust:')) return { id, name: 'Fresh start', color: '#D6DCC8', kind: 'adjust', rate: 0 };
     if (String(id).startsWith('reward:')) { const b = S.bought.find(x => x.id === id); return { id, name: b ? `Reward: ${b.name}` : 'Reward', color: '#16210F', kind: 'reward', rate: 0 }; }
     return { id, name: 'Other', color: '#D6DCC8', kind: 'neutral', rate: 0 };
@@ -272,7 +274,8 @@
   const gemsEarned = () => Math.min(S.gemsCollected || 0, gemsAccrued());
   const gemsPending = () => Math.max(0, gemsAccrued() - gemsEarned());
   const gemsSpent = () => S.bought.reduce((a, b) => a + (b.cur === 'gem' ? b.cost : 0), 0);
-  const gems = () => Math.max(0, gemsEarned() - gemsSpent());
+  const gemsBought = () => S.entries.reduce((a, e) => a + (e.gems || 0), 0);
+  const gems = () => Math.max(0, gemsEarned() + gemsBought() - gemsSpent());
   const gemFrac = () => Math.max(0, Math.min(0.999, Math.max(0, divAccrued() - (S.divLegacy || 0)) * GEM_PER_DIV - gemsAccrued()));   // progress toward the next gem
   const gemsPerDay = d => dividendPerDay(d) * GEM_PER_DIV;
   const ticksSaved = () => S.gift + S.entries.reduce((a, e) => a + (e.div ? 0 : e.ticks), 0) + Math.min(S.divLegacy || 0, divAccrued());   // without the running deed (Tons from old-style dividends stay in)
@@ -488,6 +491,14 @@
     save(); render(); confetti(el); chime();
     rewardSummary(rec, g, gems());
   }
+  // exchange: Tons → gems at a steep price; never lets the balance go below zero
+  function buyGems(n) {
+    const cost = n * GEM_BUY_PRICE;
+    if (balance() < cost) { flash(`You need ${t1(cost - balance())} more Tons`); return; }
+    if (!confirm(`Buy ${n} gem${n === 1 ? '' : 's'} for ${num(cost)} Tons?`)) return;
+    S.entries.push({ id: uid(), deedId: 'buy:' + uid(), ts: Date.now(), secs: 0, ticks: -cost, gems: n });
+    save(); render(); chime(); flash(`+${n} gem${n === 1 ? '' : 's'} · −${num(cost)} Tons`);
+  }
   // spend gems on anything, without making it an item first
   function spendAnySheet() {
     openSheet(`<h3>Treat myself</h3><div class="sub">Spend gems on whatever you like — it's yours to decide.</div>
@@ -568,7 +579,7 @@
       .map(x => ({ id: x.id, name: TXT(x.name, 40), color: PALETTE.includes(x.color) ? x.color : PALETTE[0], kind: x.kind, rate: N(x.rate) ? x.rate : 0,
         ...(x.kind === 'care' ? { pillar: x.pillar, mode: x.mode, pts: x.pts } : {}), ...(N(x.mod) ? { mod: x.mod } : {}) }));
     out.entries = A(d.entries).filter(e => e && ID(e.id) && ID(e.deedId) && N(e.ts) && N(e.secs) && N(e.ticks))
-      .map(e => ({ id: e.id, deedId: e.deedId, ts: e.ts, secs: e.secs, ticks: e.ticks, ...(e.div ? { div: true } : {}) }));
+      .map(e => ({ id: e.id, deedId: e.deedId, ts: e.ts, secs: e.secs, ticks: e.ticks, ...(e.div ? { div: true } : {}), ...(N(e.gems) && e.gems > 0 && e.gems <= 100000 ? { gems: Math.round(e.gems) } : {}) }));
     out.notes = A(d.notes).filter(n => n && ID(n.id) && T(n.title) && N(n.ts))
       .map(n => ({ id: n.id, ts: n.ts, kind: ['reward', 'care', 'general'].includes(n.kind) ? n.kind : 'invest', ...(ID(n.deedId) ? { deedId: n.deedId } : {}), ...(ID(n.refId) ? { refId: n.refId } : {}),
         title: TXT(n.title, 80), line: TXT(n.line, 160), text: TXT(n.text, 600), rating: Number.isInteger(n.rating) && n.rating >= 1 && n.rating <= 5 ? n.rating : 0, ...(N(n.edited) ? { edited: n.edited } : {}) }));
@@ -928,7 +939,10 @@
       ${head('Shop', '<button class="icon-btn" data-act="addgoal" aria-label="Add shop item">+</button>')}
       <div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><div class="eyebrow">Your gems</div><span class="gv">${gm}<b>${gemN(have)}</b></span></div>${gemsPending() >= 1 ? `<button class="pbtn" data-act="collect">Collect +${gemN(gemsPending())}</button>` : ''}</div>
       ${cloudLine()}
-      <button class="btn lime" data-act="spendany" style="border:1.5px solid var(--ink);margin-bottom:6px">Treat myself — spend on anything</button>
+      <button class="btn lime" data-act="spendany" style="border:1.5px solid var(--ink);margin-bottom:12px">Treat myself — spend on anything</button>
+      <div class="card"><div class="sechead" style="margin:0 0 4px"><span class="eyebrow">Buy gems with Tons</span><span class="sub" style="margin:0">1 ${gm} = ${tk}${GEM_BUY_PRICE}</span></div>
+        <div class="sub" style="margin:0 0 10px">Pricey on purpose — investing earns gems far cheaper. You have ${tk}${t1(Math.max(0, balance()))}.</div>
+        <div class="packs">${[1, 5, 10].map(n => `<button class="pack" data-buygems="${n}" ${balance() < n * GEM_BUY_PRICE ? 'disabled' : ''}><span class="gv" style="font-size:20px"><i>+</i>${gm}<b>${n}</b></span><span class="sub" style="margin:0;font-size:12px">${tk}${num(n * GEM_BUY_PRICE)}</span></button>`).join('')}</div></div>
       ${saving.length ? `<div class="eyebrow" style="margin:18px 2px 8px">Saving up for</div>${saving.map(savingCard).join('')}` : ''}
       ${cats.map(c => `<div class="glbl" style="margin:16px 2px 8px">${esc(c)}</div><div class="card" style="padding:4px 14px">${shop.filter(g => (g.cat || 'Other') === c).map(row).join('')}</div>`).join('')}
       ${!saving.length && !shop.length ? '<div class="card"><div class="empty">The shop is empty.<br>Tap + to add something you would like to buy with gems.</div></div>' : ''}
@@ -939,9 +953,10 @@
 
   // ---------- History ----------
   let histRange = 7, histMore = false;
-  const CAT = { care: 'Looking after yourself', div: 'Dividends', other: 'Other income', invest: 'Investing', useless: 'Useless time', reward: 'Rewards bought', otherOut: 'Other' };
+  const CAT = { care: 'Looking after yourself', div: 'Dividends', other: 'Other income', invest: 'Investing', useless: 'Useless time', reward: 'Rewards bought', exchange: 'Gems bought', otherOut: 'Other' };
   const catOf = e => {
     if (e.div) return 'div';
+    if (String(e.deedId).startsWith('buy:')) return 'exchange';
     if (String(e.deedId).startsWith('reward:')) return 'reward';
     const d = deedOf(e.deedId);
     if (e.ticks > 0) return d.kind === 'care' ? 'care' : 'other';
@@ -1216,6 +1231,7 @@
     if (d.tab) { tab = d.tab; render(); return; }
     if (d.chip) { ask(d.chip); return; }
     if (d.pick) { pickSheet(d.pick); return; }
+    if (d.buygems) { buyGems(parseInt(d.buygems, 10)); return; }
     if ((d.tap || d.start) && t.closest('#sheet')) closeSheet();
     if (d.tap) { tapCare(d.tap); return; }
     if (d.start) {

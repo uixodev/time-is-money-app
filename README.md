@@ -24,6 +24,7 @@ A pillar that is already full pays nothing, so nothing can be farmed. Looking af
 - **Tons** are your everyday money: earned by looking after yourself, spent on investing and useless time. They can be fractions and can go negative.
 - **Gems** are the investment currency: **whole numbers only**, counted one by one. **Investments pay gems** (1 Ton of dividend = 5 gems; a gem arrives when a whole one has built up). They build up until you press **Collect** (or turn on **Auto-pay**).
 - **The Shop is paid in gems**, not Tons. Old goals were converted once (÷5, minimum 1 gem) — edit them any time. Rewards you bought before stay recorded in Tons.
+- **You can also buy gems with Tons** in the Shop, but it's deliberately pricey: **1 gem = 30 Tons** (packs of 1, 5 and 10). It only works while you have enough Tons — you can't buy gems into debt. Investing earns gems far cheaper.
 - Dividends you had already collected in Tons stay in your Tons balance; ones that were still waiting became gems.
 
 ## Investments
