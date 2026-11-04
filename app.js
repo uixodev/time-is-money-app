@@ -5,7 +5,7 @@
 (() => {
   'use strict';
   const KEY = 'tick.v1';
-  const VERSION = 'v49';   // bump with the ?v= number in index.html so browsers fetch fresh files
+  const VERSION = 'v50';   // bump with the ?v= number in index.html so browsers fetch fresh files
   const DAY = 86400;
   const $ = (s, el = document) => el.querySelector(s);
   // one tonal green family (+ ink) so every deed colour belongs to the brand
@@ -14,14 +14,17 @@
   // ---------- state ----------
   // Health: seven pillars, each a 0–100 gauge that drains over time and refills with care deeds
   const PILLARS = {
-    sleep:   { name: 'Sleep',   decay: 4.5, price: 0.9 },   // decay = points lost per hour · price = Tons earned per point refilled (raised 50% in v28)
-    food:    { name: 'Food',    decay: 6,   price: 0.525 },
-    move:    { name: 'Move',    decay: 2,   price: 1.5 },
-    hygiene: { name: 'Hygiene', decay: 3,   price: 0.45 },
-    home:    { name: 'Home',    decay: 1.5, price: 1.05 },
-    family:  { name: 'Family',  decay: 1.2, price: 1.2 },
-    allah:   { name: 'Allah',   decay: 3,   price: 0.9 },   // faith: prayer, Quran, remembrance — about five prayers' worth of drain a day
+    sleep:   { name: 'Sleep',   decay: 4.5, price: 0.9,   target: 480, unit: 'min',   cap: 90 },   // decay = points lost per hour · price = Tons earned per point refilled (raised 50% in v28)
+    food:    { name: 'Food',    decay: 6,   price: 0.525, target: 3,   unit: 'count', cap: 60,  noun: 'meal' },
+    move:    { name: 'Move',    decay: 2,   price: 1.5,   target: 30,  unit: 'min',   cap: 50 },
+    hygiene: { name: 'Hygiene', decay: 3,   price: 0.45,  target: 2,   unit: 'count', cap: 40,  noun: 'wash' },
+    home:    { name: 'Home',    decay: 1.5, price: 1.05,  target: 30,  unit: 'min',   cap: 50 },
+    family:  { name: 'Family',  decay: 1.2, price: 1.2,   target: 30,  unit: 'min',   cap: 40 },
+    allah:   { name: 'Allah',   decay: 3,   price: 0.9,   target: 5,   unit: 'count', cap: 80,  noun: 'prayer' },   // faith: prayer, Quran, remembrance — about five prayers' worth of drain a day
   };
+  // Daily targets are real-life amounts (8h sleep, 3 meals, 30 min of movement…). `cap` is the most Tons a pillar can pay in one day.
+  // To invest you must reach a minimum share of today's target in the pillars you choose (S.gate, edit it on the Invest tab).
+  const GATE_DEFAULT = { sleep: 0.5, food: 0.25 };
   const MAX_ACTIVE = 3;           // deeds you can run at the same time
   const HEALTH_MIN = 40;          // below this overall Health you can't start an investment
   const FADE = 0.98;              // skills fade 2% a day without practice
@@ -101,6 +104,7 @@
       S.goals.forEach(g => { g.target = Math.max(1, Math.round(g.target / 5)); g.mod = Date.now(); });   // goals are now priced in gems
       S.gemsV = 1;
     }
+    if (!S.gate || typeof S.gate !== 'object') S.gate = { ...GATE_DEFAULT };
     if (S.shopV !== 1) {                                               // v45: Goals became a Shop. Old goals are "saving for" items; a few starter items are added once.
       const dead = S.tomb || [];
       S.goals.forEach(g => { if (g.pin === undefined) g.pin = true; if (!g.cat) g.cat = 'Other'; });
@@ -203,7 +207,7 @@
   const careRate = d => d.pts * PILLARS[d.pillar].price;   // Tons per minute (timer) or per check-in (tap) when the pillar has room
   const fmtSec = v => String(Number(Math.abs(v).toPrecision(2)));   // 0.0175 → 0.018, 0.002 → 0.002 (two significant digits)
   const perSec = perMin => fmtSec(perMin / 60);
-  const leftLbl = d => { const r = roomTons(d.pillar); return r < 0.05 ? 'full' : `${t1(r)} left`; };   // Tons still earnable from this deed's pillar
+  const leftLbl = d => { const r = payRoom(d.pillar); return r < 0.05 ? 'full' : `${t1(r)} left`; };   // Tons still earnable from this deed's pillar
   // care timers are labelled in Tons per second; check-ins in Tons each; costs stay per minute
   const rateLbl = d => d.kind === 'invest' || d.kind === 'useless' ? `−${nf2(d.rate)}/min`
     : d.kind === 'care' ? (d.mode === 'tap' ? `+${nf(careRate(d))} Tons each` : `+${perSec(careRate(d))} Tons/sec`) : 'no Tons';
@@ -217,8 +221,28 @@
   const liveGain = k => S.actives.reduce((sum, a) => { const d = deedOf(a.deedId); return sum + (d.kind === 'care' && d.mode === 'timer' && d.pillar === k ? d.pts * elapsedOf(a) / 60 : 0); }, 0);
   const pv = k => clamp(hBase(k) + liveGain(k), 0, 100);
   const roomTons = k => Math.max(0, (100 - pv(k)) * PILLARS[k].price);   // Tons this pillar can still pay before it is full
+  // --- today's progress toward each pillar's real-life target, and how much it has already paid today
+  const careOf = e => { const d = deedOf(e.deedId); return d.kind === 'care' ? d : null; };
+  function dayProgress(k) {
+    const P = PILLARS[k], [d0, d1] = dayRange(0); let v = 0;
+    S.entries.forEach(e => { if (e.ts < d0 || e.ts >= d1 || e.div) return; const d = careOf(e); if (!d || d.pillar !== k) return; if (P.unit === 'min' && d.mode === 'timer') v += e.secs / 60; else if (P.unit === 'count' && d.mode === 'tap') v += e.n || 1; });
+    if (P.unit === 'min') S.actives.forEach(a => { const d = deedOf(a.deedId); if (d.kind === 'care' && d.mode === 'timer' && d.pillar === k) v += activeIn(a, d0, d1) / 60; });
+    return v;
+  }
+  function dayEarnedP(k) {
+    const [d0, d1] = dayRange(0); let v = 0;
+    S.entries.forEach(e => { if (e.ts >= d0 && e.ts < d1 && !e.div && e.ticks > 0) { const d = careOf(e); if (d && d.pillar === k) v += e.ticks; } });
+    return v;
+  }
+  const dayRoomP = k => Math.max(0, PILLARS[k].cap - dayEarnedP(k));              // Tons this pillar may still pay today
+  const payRoom = k => Math.min(roomTons(k), dayRoomP(k));                        // …and before it is full — whichever runs out first
+  const tgtFmt = (k, v) => { const P = PILLARS[k]; return P.unit === 'min' ? (v >= 60 ? `${nf(Math.round(v / 6) / 10)}h` : `${Math.round(v)} min`) : `${Math.round(v)}`; };
+  const tgtName = (k, v) => { const P = PILLARS[k]; return P.unit === 'min' ? tgtFmt(k, v) : `${Math.round(v)} ${P.noun}${Math.round(v) === 1 ? '' : 's'}`; };
+  const gateNeed = k => Math.ceil(PILLARS[k].target * (S.gate[k] || 0) - 1e-9);   // how much of the target investing requires
+  const gateMissing = () => Object.keys(PILLARS).filter(k => (S.gate[k] || 0) > 0 && dayProgress(k) + 1e-9 < gateNeed(k)).map(k => ({ k, need: gateNeed(k), have: dayProgress(k) }));
+  const gateMsg = () => { const m = gateMissing(); return m.length ? 'Finish first: ' + m.map(x => `${PILLARS[x.k].name} ${tgtName(x.k, x.need)} (done ${tgtFmt(x.k, x.have)})`).join(' · ') : ''; };
   const healthScore = () => { const v = Object.keys(PILLARS).map(pv); return 0.6 * (v.reduce((a, b) => a + b, 0) / v.length) + 0.4 * Math.min(...v); };
-  const gated = () => healthScore() < HEALTH_MIN;
+  const gated = () => gateMissing().length > 0;
   const healthWord = () => { const h = healthScore(); return h >= 70 ? 'Strong' : h >= HEALTH_MIN ? 'OK' : 'Low'; };
   const refill = (k, g) => { S.health[k] = { v: clamp(hBase(k) + g, 0, 100), t: Date.now() }; };
   const lowest = n => Object.keys(PILLARS).sort((a, b) => pv(a) - pv(b)).slice(0, n);
@@ -236,7 +260,8 @@
     if (d.kind === 'invest') return -d.rate * m;
     if (d.kind === 'care') {
       const cap = d.mode === 'timer' && d.pts > 0 ? Math.max(0, (100 - (a.startVal || 0)) / d.pts) : m;   // a full pillar stops paying
-      return careRate(d) * Math.min(m, cap);
+      const perMin = careRate(d), dayCap = perMin > 0 ? dayRoomP(d.pillar) / perMin : m;                    // …and so does today's daily limit
+      return perMin * Math.min(m, cap, dayCap);
     }
     if (d.kind === 'useless') return -uselessCost(d.rate, m, ticksSaved());
     return 0;
@@ -340,10 +365,11 @@
     $('#app').appendChild(e); setTimeout(() => e.remove(), action ? 5000 : 2300);
   }
   function tapCare(id) {
-    const d = deedOf(id), gain = Math.min(d.pts, 100 - hBase(d.pillar));
+    const d = deedOf(id), gain = Math.min(d.pts, 100 - hBase(d.pillar)), room = dayRoomP(d.pillar);
     if (gain < 0.5) { flash(`${PILLARS[d.pillar].name} is already full`); return; }
-    const ticks = gain * PILLARS[d.pillar].price;   // pays in proportion to what it actually refilled
-    refill(d.pillar, gain);
+    if (room < 0.05) { flash(`Daily limit reached for ${PILLARS[d.pillar].name} (${tk}${PILLARS[d.pillar].cap}) — back tomorrow`); return; }
+    const ticks = Math.min(gain * PILLARS[d.pillar].price, room);   // pays in proportion to what it refilled, up to today's limit
+    refill(d.pillar, ticks / PILLARS[d.pillar].price);
     S.entries.push({ id: uid(), deedId: id, ts: Date.now(), secs: 0, ticks });
     save(); flash(`+${t1(ticks)} Tons · ${PILLARS[d.pillar].name} (${leftLbl(d)})`); render(); chime();
   }
@@ -464,7 +490,7 @@
     const p = PILLARS[d.pillar];
     miniSummary({
       emoji: '💚', heading: 'Nicely done', sub: `<b>${esc(d.name)}</b> · ${p.name} · Health ${healthWord()}`,
-      stats: `<div class="stats">${statBox(dur(secs), 'time')}${statBox(tk + '+' + t1(earned), 'Tons earned')}${statBox(tk + '+' + fmtSec(secs > 0 ? earned / secs : 0), 'Tons per second')}${statBox(roomTons(d.pillar) < 0.05 ? 'Full' : tk + t1(roomTons(d.pillar)), p.name + ' · left to earn')}</div>`,
+      stats: `<div class="stats">${statBox(dur(secs), 'time')}${statBox(tk + '+' + t1(earned), 'Tons earned')}${statBox(tk + '+' + fmtSec(secs > 0 ? earned / secs : 0), 'Tons per second')}${statBox(payRoom(d.pillar) < 0.05 ? 'Full' : tk + t1(payRoom(d.pillar)), p.name + ' · left to earn')}</div>`,
       foot: `Balance ${tk}${t1(balance())}`,
     });
   }
@@ -574,12 +600,13 @@
     const out = { onboarded: !!d.onboarded };
     ['created', 'gift', 'divAt', 'divCollected', 'divLegacy', 'gemsCollected', 'gemsV', 'shopV'].forEach(k => { if (N(d[k])) out[k] = d[k]; });
     if (typeof d.divAuto === 'boolean') out.divAuto = d.divAuto;
+    if (d.gate && typeof d.gate === 'object') out.gate = Object.fromEntries(Object.keys(PILLARS).filter(k => N(d.gate[k])).map(k => [k, Math.max(0, Math.min(1, d.gate[k]))]));
     out.deeds = A(d.deeds).filter(x => x && ID(x.id) && T(x.name) && KINDS.includes(x.kind) &&
       (x.kind === 'care' ? Object.prototype.hasOwnProperty.call(PILLARS, x.pillar) && ['timer', 'tap'].includes(x.mode) && N(x.pts) && x.pts > 0 : x.kind === 'neutral' || N(x.rate)))
       .map(x => ({ id: x.id, name: TXT(x.name, 40), color: PALETTE.includes(x.color) ? x.color : PALETTE[0], kind: x.kind, rate: N(x.rate) ? x.rate : 0,
         ...(x.kind === 'care' ? { pillar: x.pillar, mode: x.mode, pts: x.pts } : {}), ...(N(x.mod) ? { mod: x.mod } : {}) }));
     out.entries = A(d.entries).filter(e => e && ID(e.id) && ID(e.deedId) && N(e.ts) && N(e.secs) && N(e.ticks))
-      .map(e => ({ id: e.id, deedId: e.deedId, ts: e.ts, secs: e.secs, ticks: e.ticks, ...(e.div ? { div: true } : {}), ...(N(e.gems) && e.gems > 0 && e.gems <= 100000 ? { gems: Math.round(e.gems) } : {}) }));
+      .map(e => ({ id: e.id, deedId: e.deedId, ts: e.ts, secs: e.secs, ticks: e.ticks, ...(e.div ? { div: true } : {}), ...(N(e.gems) && e.gems > 0 && e.gems <= 100000 ? { gems: Math.round(e.gems) } : {}), ...(N(e.n) && e.n >= 1 && e.n <= 100 ? { n: Math.round(e.n) } : {}) }));
     out.notes = A(d.notes).filter(n => n && ID(n.id) && T(n.title) && N(n.ts))
       .map(n => ({ id: n.id, ts: n.ts, kind: ['reward', 'care', 'general'].includes(n.kind) ? n.kind : 'invest', ...(ID(n.deedId) ? { deedId: n.deedId } : {}), ...(ID(n.refId) ? { refId: n.refId } : {}),
         title: TXT(n.title, 80), line: TXT(n.line, 160), text: TXT(n.text, 600), rating: Number.isInteger(n.rating) && n.rating >= 1 && n.rating <= 5 ? n.rating : 0, ...(N(n.edited) ? { edited: n.edited } : {}) }));
@@ -667,12 +694,12 @@
     const v = Math.round(pv(k));
     return `<div class="pl ${v < HEALTH_MIN ? 'low' : ''}"><div class="pn"><span>${PILLARS[k].name}</span><b>${v}%</b></div><div class="pb"><i style="width:${v}%"></i></div></div>`;
   }).join('');
-  const healthSub = () => gated() ? `Too low to invest — refill ${lowest(2).map(k => PILLARS[k].name).join(' or ')} first` : `Refill pillars to earn Tons · keep it above ${HEALTH_MIN}% to invest`;
+  const healthSub = () => gated() ? gateMsg() : `Refill pillars to earn Tons · keep it above ${HEALTH_MIN}% to invest`;
   const deedBtn = d => {
-    const care = d.kind === 'care', tap = care && d.mode === 'tap', r = care ? roomTons(d.pillar) : 0, pct = care ? Math.round(100 * r / (100 * PILLARS[d.pillar].price)) : 0;
+    const care = d.kind === 'care', tap = care && d.mode === 'tap', r = care ? payRoom(d.pillar) : 0, pct = care ? Math.round(100 * r / PILLARS[d.pillar].cap) : 0;
     const attr = tap ? `data-tap="${d.id}"` : `data-start="${d.id}" ${d.kind === 'invest' && gated() ? 'disabled' : ''}`;
     return `<button class="deedbtn" ${attr}><span class="dn"><i class="dot" style="background:${d.color}"></i><span>${esc(d.name)}</span></span>
-      <em class="dr">${rateLbl(d)}</em>${care ? `<span class="dl">${r < 0.05 ? 'full — nothing to earn' : `${t1(r)} Tons to earn`}</span><span class="db"><i style="width:${pct}%"></i></span>` : ''}</button>`;
+      <em class="dr">${rateLbl(d)}</em>${care ? `<span class="dl">${r < 0.05 ? (dayRoomP(d.pillar) < 0.05 ? 'daily limit reached' : 'full — nothing to earn') : `${t1(r)} Tons to earn today`}</span><span class="db"><i style="width:${pct}%"></i></span>` : ''}</button>`;
   };
   const group = (kind, title) => {
     const ds = S.deeds.filter(d => d.kind === kind && !isActive(d.id)); if (!ds.length) return '';
@@ -681,7 +708,7 @@
 
   // ---------- The running timer (see timers.js) ----------
   const REDUCED = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
-  const timerCtx = (d, el, t) => ({ kind: d.kind, elapsed: el, ticks: t, reduced: REDUCED, signHTML: tk, pillar: null, label: d.kind === 'care' && d.mode === 'timer' ? (roomTons(d.pillar) < 0.05 ? `${PILLARS[d.pillar].name} is full — no more Tons right now` : `Tons this session · ${roomTons(d.pillar).toFixed(2)} left to earn`) : undefined });
+  const timerCtx = (d, el, t) => ({ kind: d.kind, elapsed: el, ticks: t, reduced: REDUCED, signHTML: tk, pillar: null, label: d.kind === 'care' && d.mode === 'timer' ? (payRoom(d.pillar) < 0.05 ? `${PILLARS[d.pillar].name} ${dayRoomP(d.pillar) < 0.05 ? 'daily limit reached' : 'is full'} — no more Tons right now` : `Tons this session · ${payRoom(d.pillar).toFixed(2)} left to earn today`) : undefined });
   const verbOf = d => ({ invest: 'Investing in', care: 'Looking after', useless: 'Spending on', neutral: 'Doing' }[d.kind]);
   const netLbl = r => `${r >= 0 ? '+' : '−'}${Math.abs(r).toFixed(1)}/min`;
   const comboNet = () => S.actives.reduce((sum, a) => sum + ticksFor(a, elapsedOf(a)), 0);
@@ -747,7 +774,7 @@
     const [name, , sub] = KIND_UI[kind];
     const full = S.actives.length >= MAX_ACTIVE;
     openSheet(`<div style="display:flex;justify-content:space-between;align-items:center"><h3 style="margin:0">${name}</h3><button id="x" aria-label="Close" style="width:38px;height:38px;border-radius:50%;border:1.5px solid var(--ink);background:none;color:var(--ink);font-size:22px;line-height:1;cursor:pointer">×</button></div>
-      <div class="sub" style="margin-bottom:6px">${full ? `You are doing ${MAX_ACTIVE} things at once — stop one to start another.` : kind === 'invest' && gated() ? `Health is too low to invest — refill ${lowest(2).map(k => PILLARS[k].name).join(' or ')} first.` : sub}</div>
+      <div class="sub" style="margin-bottom:6px">${full ? `You are doing ${MAX_ACTIVE} things at once — stop one to start another.` : kind === 'invest' && gated() ? gateMsg() : sub}</div>
       <div class="compact">${group(kind, '')}${kind === 'care' ? group('neutral', 'Just living · time only') : ''}</div>${kind === 'useless' ? `<div style="margin-top:12px"><div class="sub" style="margin:0 0 6px">Edit a spend deed</div>${S.deeds.filter(x => x.kind === 'useless').map(x => `<button class="chip" data-edit="${x.id}">${esc(x.name)} ✎</button>`).join('')}<button class="chip" data-act="adddeed">+ New</button></div>` : ''}`, w => { $('#x', w).onclick = closeSheet; });
   }
   const recentHTML = () => {
@@ -784,6 +811,30 @@
       ${can ? `<button class="btn" data-buy="${g.id}" style="margin-top:10px">Buy it · ${gm} ${gemN(g.target)}</button>` : ''}
     </div>`;
   }
+  // today's progress against real-life targets, how much each pillar has paid, and what investing needs
+  function todayHealthHTML() {
+    const rows = Object.keys(PILLARS).map(k => {
+      const P = PILLARS[k], have = dayProgress(k), pct = Math.min(100, have / P.target * 100), g = S.gate[k] || 0, met = !g || have + 1e-9 >= gateNeed(k), earned = dayEarnedP(k), full = earned >= P.cap - 0.05;
+      return `<div class="hp"><div class="hpt"><b>${P.name}${g ? ` <em class="${met ? 'ok' : 'need'}">${met ? '✓' : 'needed to invest'}</em>` : ''}</b><span>${tgtFmt(k, have)} of ${tgtName(k, P.target)}</span></div>
+        <div class="hpb"><i class="${pct >= 100 ? 'done' : ''}" style="width:${pct}%"></i>${g ? `<u style="left:${Math.min(100, g * 100)}%"></u>` : ''}</div>
+        <div class="hps"><span>${tk}${t1(earned)} of ${P.cap} earned today</span>${full ? '<span>daily limit reached</span>' : ''}</div></div>`;
+    }).join('');
+    const miss = gateMissing();
+    return `<div class="card"><div class="sechead" style="margin:0 0 6px"><span class="eyebrow">Today's health</span><button class="link" data-act="gate">Investing rules ›</button></div>
+      <div class="sub" style="margin:0 0 8px">${miss.length ? esc(gateMsg()) : 'You can invest today ✓'}</div>${rows}</div>`;
+  }
+  const GATE_STEPS = [0, 0.25, 0.5, 0.75, 1];
+  function gateSheet() {
+    openSheet(`<div style="display:flex;justify-content:space-between;align-items:center"><h3 style="margin:0">Investing rules</h3><button id="x" aria-label="Close" style="width:38px;height:38px;border-radius:50%;border:1.5px solid var(--ink);background:none;color:var(--ink);font-size:22px;line-height:1;cursor:pointer">×</button></div>
+      <div class="sub" style="margin-bottom:8px">To start an investment you must first reach this share of today's target in each pillar you switch on. It resets every midnight.</div>
+      ${Object.keys(PILLARS).map(k => { const P = PILLARS[k], g = S.gate[k] || 0; return `<div style="margin-top:12px"><div style="display:flex;justify-content:space-between"><b>${P.name}</b><span class="sub" style="margin:0">${g ? `need ${tgtName(k, gateNeed(k))} of ${tgtName(k, P.target)}` : `target ${tgtName(k, P.target)} · not required`}</span></div>
+        <div class="seg">${GATE_STEPS.map(v => `<button type="button" data-g="${k}:${v}" class="${Math.abs(g - v) < 1e-6 ? 'on' : ''}">${v ? Math.round(v * 100) + '%' : 'Off'}</button>`).join('')}</div></div>`; }).join('')}
+      <div class="sub" style="margin-top:14px">Daily limits: each pillar can pay at most ${Object.keys(PILLARS).map(k => `${PILLARS[k].name} ${PILLARS[k].cap}`).join(' · ')} Tons a day.</div>
+      <button class="btn" id="ok" style="margin-top:12px">Done</button>`, w => {
+      $('#x', w).onclick = closeSheet; $('#ok', w).onclick = closeSheet;
+      w.onclick = e => { if (e.target === w) { closeSheet(); return; } const b = e.target.closest('[data-g]'); if (!b) return; const [k, v] = b.dataset.g.split(':'); S.gate[k] = parseFloat(v); save(); const sc = w.firstElementChild.scrollTop; gateSheet(); const n = $('#sheet').firstElementChild; if (n) n.scrollTop = sc; render(); };
+    });
+  }
   function viewWallet() {
     const bal = balance(), debt = bal < -0.004;
     const act = (k, label, extra) => `<button class="qa" ${extra}><span class="qi">${icon(k)}</span><span>${label}</span></button>`;
@@ -798,7 +849,7 @@
       </div>
       <div class="qas">${act('earn', 'Earn', 'data-pick="care"')}${act('invest', 'Invest', 'data-pick="invest"')}${act('spend', 'Spend', 'data-pick="useless"')}${act('history', 'History', 'data-act="ledger"')}</div>
       ${runningHTML()}
-      ${incomingHTML()}${nextGoalHTML()}
+      ${todayHealthHTML()}${incomingHTML()}${nextGoalHTML()}
       <div class="sechead"><b>Recent activity</b><button class="link" data-act="ledger">See all</button></div>
       <div class="card txl" id="recent">${recentHTML()}</div>
       <div class="sechead"><b>Where today went</b></div>
@@ -826,7 +877,7 @@
     return `
       ${head('Deeds', '<button class="icon-btn" data-act="adddeed" aria-label="Add deed">+</button>')}
       ${grp('care', 'Care · refill your Health, earn Tons')}${grp('invest', 'Investments · cost Tons, pay gems')}${grp('neutral', 'Just living')}
-      <button class="btn lime" data-act="logpast" style="border:1.5px solid var(--ink)">+ Log time I already spent</button>`;
+      <button class="btn lime" data-act="logpast" style="border:1.5px solid var(--ink)">+ Log an exact amount</button>`;
   }
 
   function parseDur(q) {
@@ -852,7 +903,7 @@
       const d = named || { kind: 'useless', rate: 1, name: 'useless time' }, m = secs / 60, pct = (secs / DAY * 100).toFixed(1);
       if (d.kind === 'invest') {
         const cost = d.rate * m, perDay = (secs / 3600) * d.rate * DIV_PER_RATE, back = perDay > 0 ? Math.ceil(cost / perDay) : 0;
-        return `${dur(secs)} of ${d.name} costs ${t1(cost)} Tons (${nf2(d.rate)}/min).\nIt pays about ${gemRate(perDay * GEM_PER_DIV)} gems a day, fading 2% a day if you stop practising.\nThat is roughly ${gemRate(cost / Math.max(0.01, perDay * GEM_PER_DIV))} Tons per gem.` + (gated() ? '\nBut Health is too low to start it right now.' : '');
+        return `${dur(secs)} of ${d.name} costs ${t1(cost)} Tons (${nf2(d.rate)}/min).\nIt pays about ${gemRate(perDay * GEM_PER_DIV)} gems a day, fading 2% a day if you stop practising.\nThat is roughly ${gemRate(cost / Math.max(0.01, perDay * GEM_PER_DIV))} Tons per gem.` + (gated() ? '\nBut ' + gateMsg().toLowerCase() + ' before you can start it.' : '');
       }
       if (d.kind === 'care') return d.mode === 'tap' ? `${d.name} is a quick check-in worth up to +${nf(careRate(d))} Tons.` : `${dur(secs)} of ${d.name} earns up to +${t1(careRate(d) * m)} Tons (${perSec(careRate(d))} Tons/sec) — but ${PILLARS[d.pillar].name} can only pay ${t1(roomTons(d.pillar))} more right now.`;
       if (d.kind === 'useless') {
@@ -881,7 +932,7 @@
     openSheet(`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><div><h3 style="margin:0">${esc(d.name)}</h3><div class="sub" style="margin:2px 0 0">costs ${nf2(d.rate)} Tons/min · ${roiChip(x)}</div></div><div style="display:flex;gap:8px"><button class="x edit" data-edit="${id}" aria-label="Edit">✎</button><button id="x" aria-label="Close" style="width:38px;height:38px;border-radius:50%;border:1.5px solid var(--ink);background:none;color:var(--ink);font-size:22px;line-height:1;cursor:pointer">×</button></div></div>
       <div class="stats">${statBox(gm + ' ' + gemRate(x.gemsDay), 'gems / day')}${statBox(nf(Math.round(x.hours * 10) / 10) + 'h', 'time invested')}${statBox(tk + num(x.spent), 'Tons invested')}${statBox(gm + ' ' + gemN(x.gemsEarned), 'gems earned')}${statBox(x.skill.toFixed(1) + 'h', 'skill now')}${statBox(x.gemsEarned > 0 ? tk + t1(x.spent / x.gemsEarned) : '—', 'Tons per gem so far')}</div>
       ${n ? `<div class="sub" style="margin-top:12px;font-style:italic">“${esc(n.text || 'Rated ' + n.rating + '/5')}” <span style="font-size:12px">· ${cnt} note${cnt === 1 ? '' : 's'}</span></div>` : ''}
-      <div style="display:flex;gap:10px;margin-top:14px"><button class="btn" style="margin:0;flex:1" data-start="${id}" ${dis ? 'disabled' : ''}>${isActive(id) ? 'Running…' : gated() ? 'Health too low' : S.actives.length >= MAX_ACTIVE ? '3 running' : 'Invest now'}</button><button class="chip" style="margin:0;align-self:center" data-add-note="${id}">+ note</button></div>`, w => { $('#x', w).onclick = closeSheet; });
+      <div style="display:flex;gap:10px;margin-top:14px"><button class="btn" style="margin:0;flex:1" data-start="${id}" ${dis ? 'disabled' : ''}>${isActive(id) ? 'Running…' : gated() ? 'Finish first' : S.actives.length >= MAX_ACTIVE ? '3 running' : 'Invest now'}</button><button class="chip" style="margin:0;align-self:center" data-add-note="${id}">+ note</button></div>`, w => { $('#x', w).onclick = closeSheet; });
   }
   function viewInvest() {
     const invs = S.deeds.filter(d => d.kind === 'invest'), st = invs.map(d => ({ d, ...investStats(d) })).sort((a, b) => b.gemsDay - a.gemsDay);
@@ -896,6 +947,7 @@
         ${divChart()}
         <div class="hrow"><span>Last 14 days</span><span>gems earned per day</span></div>
       </div>
+      <div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div style="min-width:0"><div class="eyebrow">${gated() ? 'Finish first' : 'Ready to invest'}</div><div class="sub" style="margin:2px 0 0">${gated() ? esc(gateMsg()) : 'Today\'s requirements are met ✓'}</div></div><button class="chip" style="margin:0" data-act="gate">Rules</button></div>
       <div class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><div class="eyebrow">${S.divAuto ? 'Auto-pay is on' : 'Ready to collect'}</div>${S.divAuto ? '<div class="gv" style="font-size:20px">Paid as it builds</div>' : `<span class="gv"><i>+</i>${gm}<b>${gemN(pend)}</b></span>`}</div>${S.divAuto ? '' : `<button class="pbtn" data-act="collect" ${pend < 1 ? 'disabled style="opacity:.4"' : ''}>Collect</button>`}</div>
         ${S.divAuto ? '' : `<div class="bar"><i style="width:${Math.round(gemFrac() * 100)}%"></i></div><div class="sub" style="margin-top:6px">Next gem is ${Math.round(gemFrac() * 100)}% there.</div>`}
         <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;padding-top:12px;border-top:1px solid var(--line)"><span style="font-weight:700">Auto-pay</span><button class="chip" style="margin:0" data-act="autopay">${S.divAuto ? 'On' : 'Off'}</button></div></div>
@@ -1038,8 +1090,6 @@
     const dk = new Date().toDateString();
     if (lastKey && lastKey !== dk) render();
     lastKey = dk;
-    const drained = S.actives.find(a => deedOf(a.deedId).kind === 'invest' && gated());
-    if (drained) { stopSession(drained.id); flash('Health is too low — investing stopped'); return; }
     const bal = balance(), { earned, spent } = dayEarnSpend(0), debt = bal < -0.004, hs = healthScore();
     const set = (id, h) => { const e = $(id); if (e) e.innerHTML = h; };
     set('#bal', tk + tBig(bal)); set('#gems', gemN(gems()));
@@ -1133,31 +1183,39 @@
       $('#dn', w).focus();
     });
   }
-  const loggable = () => S.deeds.filter(d => !(d.kind === 'care' && d.mode === 'tap'));
+  const loggable = () => S.deeds.slice();
   const deedOptions = () => loggable().map(d => `<option value="${d.id}">${esc(d.name)} (${rateLbl(d)})</option>`).join('');
   function logPastSheet() {
     if (!loggable().length) return;
-    openSheet(`<h3>Log time already spent</h3><div class="sub">You can log up to ${dur(DAY - dayRemaining())} (today so far).</div>
+    openSheet(`<h3>Log exact amount</h3><div class="sub">Add something you already did — minutes for timed deeds, how many for check-ins (up to ${dur(DAY - dayRemaining())} of time today).</div>
       <label class="l">Deed</label><select class="field sel" id="ld">${deedOptions()}</select>
-      <label class="l">Minutes</label><input class="field" id="lm" type="number" inputmode="decimal" min="1" step="1" placeholder="30">
+      <label class="l" id="llb">Minutes</label><input class="field" id="lm" type="number" inputmode="decimal" min="1" step="1" placeholder="30">
       <div class="sub" id="lv" style="margin-top:10px"></div>
       <button class="btn" id="ok">Log it</button>`, w => {
+      const isTap = d => d.kind === 'care' && d.mode === 'tap';
       const calc = () => {
         const d = deedOf($('#ld', w).value), m = parseFloat($('#lm', w).value);
+        $('#llb', w).textContent = isTap(d) ? 'How many times' : 'Minutes';
         if (!(m > 0)) return null;
+        if (isTap(d)) {                                    // each check-in refills what's left, up to today's limit
+          const n = Math.min(Math.round(m), 20), P = PILLARS[d.pillar]; let cur = hBase(d.pillar), room = dayRoomP(d.pillar), ticks = 0, gain = 0;
+          for (let i = 0; i < n; i++) { const g = Math.min(d.pts, 100 - cur); if (g < 0.5 || room < 0.05) break; const t = Math.min(g * P.price, room); cur += t / P.price; room -= t; ticks += t; gain += t / P.price; }
+          return { d, n, mins: 0, ticks, gain };
+        }
         const mins = Math.min(m, (DAY - dayRemaining()) / 60);
         let ticks = 0, gain = 0;
         if (d.kind === 'invest') ticks = -d.rate * mins;
         else if (d.kind === 'useless') ticks = -uselessCost(d.rate, mins, ticksSaved());
-        else if (d.kind === 'care') { const cap = d.pts > 0 ? Math.max(0, (100 - hBase(d.pillar)) / d.pts) : mins; ticks = careRate(d) * Math.min(mins, cap); gain = d.pts * mins; }
+        else if (d.kind === 'care') { const cap = d.pts > 0 ? Math.max(0, (100 - hBase(d.pillar)) / d.pts) : mins, dcap = careRate(d) > 0 ? dayRoomP(d.pillar) / careRate(d) : mins, eff = Math.min(mins, cap, dcap); ticks = careRate(d) * eff; gain = d.pts * eff; }
         return { d, mins, ticks, gain };
       };
-      const show = () => { const c = calc(); $('#lv').innerHTML = c ? (c.d.kind === 'neutral' ? 'No Tons change' : `${c.ticks >= 0 ? '+' : '−'}${tk}${t1(c.ticks)}`) : ''; };
-      $('#lm', w).oninput = show; $('#ld', w).onchange = show;
+      const show = () => { const c = calc(); $('#lv').innerHTML = c ? (c.d.kind === 'neutral' ? 'No Tons change' : `${c.ticks >= 0 ? '+' : '−'}${tk}${t1(c.ticks)}${c.d.kind === 'care' ? ' (after today\'s limit)' : ''}`) : ''; };
+      $('#lm', w).oninput = show; $('#ld', w).onchange = show; show();
       $('#ok', w).onclick = () => {
-        const c = calc(); if (!c || c.mins <= 0) return;
+        const c = calc(); if (!c) return;
+        if (c.d.kind === 'invest' && gated()) { flash(gateMsg()); return; }
+        if (c.n) { if (c.ticks <= 0) { flash(`Nothing to earn from ${c.d.name} right now`); return; } S.entries.push({ id: uid(), deedId: c.d.id, ts: Date.now(), secs: 0, ticks: c.ticks, n: c.n }); refill(c.d.pillar, c.gain); save(); closeSheet(); render(); return; }
         const secs = Math.round(c.mins * 60); if (secs <= 0) return;
-        if (c.d.kind === 'invest' && gated()) { flash('Health is too low to invest'); return; }
         S.entries.push({ id: uid(), deedId: c.d.id, ts: Date.now(), secs, ticks: c.ticks });
         if (c.gain) refill(c.d.pillar, c.gain);
         save(); closeSheet(); render();
@@ -1238,7 +1296,7 @@
       const dd = deedOf(d.start);
       if (isActive(d.start) || dayRemaining() <= 0) return;
       if (S.actives.length >= MAX_ACTIVE) { flash(`You can do up to ${MAX_ACTIVE} things at once`); return; }
-      if (dd.kind === 'invest' && gated()) { flash('Health is too low to invest — refill a pillar first'); return; }
+      if (dd.kind === 'invest' && gated()) { flash(gateMsg()); return; }
       S.actives.push({ id: uid(), deedId: d.start, start: Date.now(), startVal: dd.kind === 'care' ? hBase(dd.pillar) : 0, startBal: balance() }); save(); render(); return;
     }
     if (d.stop) { stopSession(d.stop); return; }
@@ -1264,6 +1322,7 @@
       case 'logpast': logPastSheet(); break;
       case 'addgoal': goalSheet(); break;
       case 'spendany': spendAnySheet(); break;
+      case 'gate': gateSheet(); break;
       case 'syncnow': if (user) { flash('Syncing…'); syncNow(); } break;
       case 'addinvest': deedSheet(null, 'invest'); break;
     }

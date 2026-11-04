@@ -377,3 +377,17 @@ textarea.field{min-height:96px;resize:vertical;line-height:1.4}
 .pack{display:flex;flex-direction:column;align-items:center;gap:2px;padding:10px 4px;border-radius:16px;border:1.5px solid var(--ink);background:var(--bg)}
 .pack:active{background:var(--lime);color:#16210F}
 .pack[disabled]{opacity:.4;cursor:not-allowed}
+
+/* v50 today's health */
+.hp{margin-top:12px}
+.hpt{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:14px}
+.hpt span{font-size:12.5px;color:var(--muted);white-space:nowrap}
+.hpt em{font-style:normal;font-size:11px;font-weight:800;padding:1px 7px;border-radius:99px;background:var(--line);color:var(--muted);margin-left:4px}
+.hpt em.ok{background:rgba(111,191,59,.25);color:#3E8E1F}
+.hpb{position:relative;height:8px;border-radius:99px;background:var(--line);margin-top:5px;overflow:visible}
+.hpb i{display:block;height:100%;border-radius:99px;background:var(--ink);max-width:100%}
+.hpb i.done{background:#6FBF3B}
+.hpb u{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--muted);border-radius:2px}
+.hps{display:flex;justify-content:space-between;font-size:11.5px;color:var(--muted);margin-top:3px}
+@media (prefers-color-scheme: dark){:root:not([data-theme=light]) .hpt em.ok{color:#C9F26B}}
+:root[data-theme=dark] .hpt em.ok{color:#C9F26B}
